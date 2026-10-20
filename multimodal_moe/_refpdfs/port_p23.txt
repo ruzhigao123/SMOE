@@ -1,0 +1,129 @@
+                                                                                                                                    2
+
+
+
+CDFGs with textual features partially recovers explicit pragma            namely KAS, which dynamically identifies the optimal
+literals and surface-level semantics, this combination remains            modality combination for each kernel and for each
+insufficient to resolve implicit structural dependencies, notably         prediction metric.
+precise pragma-loop bindings and hierarchical control flow              • Built upon the prior work SoberDSE, we integrate the
+relationships, which are often obfuscated during graph con-               aforementioned QoR prediction model, MFF-KAS, into a
+struction.                                                                unified HLS Design Space Exploration framework named
+   Problem 2 (Cross-Benchmark Modality Redundancy): Cur-                  PortfolioSync-DSE. This framework jointly optimizes
+rent fusion strategies enforce uniform concatenation of fea-              modality selection and DSE algorithm recommendation,
+tures across all candidate modalities irrespective of kernel-             achieving consistent performance improvements over both
+specific architectural traits [12], [13]. Actually, we observed           the baseline and static trimodal fusion across heteroge-
+that no fixed modality combination generalizes optimally                  neous kernel architectures.
+to all benchmark kernels: for compute-bound stencil kernel,             The overall workflow of PortfolioSync-DSE is shown in Fig.
+abstract syntax tree (AST)-derived loop hierarchy features           3. Our main contributions are as follows:
+dominate latency prediction, while text-encoded semantic                • MFF-KAS (Section IV-B): We propose a Multimodal
+cues contribute negligible marginal utility; conversely, for              Feature Fusion framework that integrates CDFG, AST,
+memory-bound sparse matrix kernels, CDFG-extracted data                   and source-code Text through cross-attention-based fusion,
+dependency patterns overlap heavily with AST-based structural             and systematically evaluates all seven non-empty subsets
+information. This indiscriminate feature integration inflates             of {CDFG, AST, Text}. We design meta-learning based
+model complexity and undermines cross-kernel prediction                   kernel aware selector to adaptively select among seven
+robustness.                                                               pretrained experts per kernel and metric, achieving im-
+   Problem 3 (Cross-Kernel Single-Algorithm Deficiency): From             proved prediction accuracy and cross-kernel generalization
+the perspective of multi-objective optimization, the No-Free-             over SOTA models.
+Lunch theorem [14] establishes that no single search algorithm          • SoberDSE (Section IV-C): We establish the SoberDSE
+can attain consistent optimality across all problem instances.            framework for DSE algorithm recommendation. we re-
+Our experimental observations confirm this phenomenon in                  formulate the DSE research paradigm by integrating per-
+the context of HLS DSE, where the relative performance of                 benchmark algorithm recommendation, which mitigates
+different DSE algorithms varies notably across benchmark                  the inherent constraints of the No-Free-Lunch theorem on
+kernels, with no single algorithm dominating universally.                 fixed search strategies. To address the challenge of limited
+Fixing a single DSE algorithm across all benchmarks therefore             benchmark training data, we propose a hybrid supervised-
+inevitably produces inferior Pareto frontiers and erodes end-to-          reinforcement learning recommendation architecture that
+end exploration efficiency.                                               initializes reinforcement learning agent states with pre-
+   To address the aforementioned limitations, we propose                  trained supervised model outputs, enabling high-precision
+PortfolioSync-DSE, a dual-adaptive orchestration framework                algorithm selection under small-sample regimes.
+that jointly selects suitable kernel-aware multimodal QoR               • PortfolioSync-DSE: Each constituent module outlined
+predictors and DSE algorithms. PortfolioSync-DSE extends                  above delivers standalone contributions to the fields of
+the prior work SoberDSE [15]. Compared to SoberDSE,                       QoR prediction and DSE research. We unify these com-
+PortfolioSync-DSE introduces the following extensions:                    ponents into a cohesive framework termed PortfolioSync-
+   • To the best of our knowledge, there is no prior work that
+                                                                          DSE, which provides an efficient, generalizable pipeline
+      directly integrates Abstract Syntax Tree (AST) represen-            for processing diverse real-world HLS benchmark kernels.
+      tations into a unified multimodal learning framework for          • Experimental results demonstrate that MFF-KAS reduces
+      HLS QoR prediction. Existing GNN-based predictors pre-              macro-averaged All RMSE by 30.5% over trimodal fusion
+      dominantly rely on control and data flow graphs (CDFG)              and by 39.6% to 67.3% over SOTA predictors, with
+      or pragmatic IR representations, leaving the structural             stronger cross-kernel robustness. When integrated into
+      semantics encapsulated in AST largely unexplored in the             SoberDSE, it outperforms state-of-the-art heuristic-based
+      context of cross-modal fusion. By incorporating AST as              and learning-based DSE algorithms by up to 69.78%
+      an additional modality alongside CDFG and text pragmas,             and 53.60%, respectively, while delivering 50.00% higher
+      our work pioneers a more comprehensive characterization             accuracy in small-sample scenarios. These compelling
+      of kernel behavior.                                                 gains motivate the unified PortfolioSync-DSE framework.
+   • Through extensive experiments across 20 HLS kernels,
+      we observe that no single modality or static modality
+                                                                                II. R ELATED WORK AND MOTIVATION
+      combination consistently achieves the best prediction ac-
+      curacy for all problem instances. Compute-bound kernels        A. QoR prediction.
+      derive substantial benefit from structural features, whereas      The evolution of QoR prediction methodologies demonstrates
+      memory-bound kernels exhibit severe redundancy between         a clear trajectory: starting from foundational GNN-based feature
+      CDFG and AST representations, and in some cases the            extraction on CDFGs, it has progressed toward increasingly
+      AST+CDFG+Text combination even underperforms the               sophisticated architectures and paradigms. Early works establish
+      CDFG+Text baseline. This finding motivates us to propose       GNNs as viable surrogates for HLS QoR estimation (Wu et
+      a kernel-aware prediction expert selection mechanism,          al. [2]), with subsequent innovations enhancing topological
+                                                                                                                                                                             3
+
+
+
+                                                            TABLE I
+                             C OMPARISON OF THREE FEATURE REPRESENTATIONS FOR HLS Q O R PREDICTION .
+
+   Feature    Form                      Information Content                                   Advantages                                     Limitations
+
+   CDFG       Graph     Basic blocks, operations, and data/control dependencies Aligned with hardware timing and datapaths Easily loses data types and exact pragma values
+   Text      Sequence               Entire source and pragma text                       Complete textual content                     Lacks hierarchical structure
+   AST         Tree      Functions, branches, loops, expressions, and pragmas   Preserves syntax and high-level semantics      Lacks explicit dataflow and control flow
+
+
+
+awareness through edge-centric aggregation (Lin et al. [3]) the redundancy and robustness issues associated with fixed
+and hierarchical pooling (Kuang et al. [4]). Breakthrough fusion policies. To validate the necessity of kernel-aware
+methodologies then emerged that bypassed traditional EDA fusion, we evaluate three model configurations, namely MPM
+dependencies: GNN-DSE achieved millisecond-level evalu- (CDFG+Text) [12], static trimodal fusion (AST+CDFG+Text),
+ation via surrogate modeling [5], Ferretti et al. matched and our proposed MFF-KAS, on four representative kernels
+industrial simulator accuracy without compiler internals [6], using an of per-metric root mean square error (RMSE) (latency
+and Powergear pioneered direct C/C++ source processing + LUT + DSP + FF + BRAM) as the evaluation metric.
+with multi-granular embeddings [7]. Most recently, ProgSG As illustrated in Fig. 2(a), the x-axis quantifies the relative
+introduced a representation learning method combining the RMSE change of the static trimodal fusion (AST+CDFG+Text)
+source sequence and the CDFG [13]. MPM coupled CDFG against the MPM baseline (CDFG+Text), where positive values
+encoders with pretrained language-model embeddings in a indicate higher error (worse performance) than MPM. The y-
+CDFG+Text fusion pipeline, achieving strong accuracy on axis measures the relative RMSE reduction of our proposed
+MachSuite and PolyBench [12].                                   MFF-KAS over MPM, with higher values denoting larger
+   Why MFF? Existing CDFG-based learning paradigms face in- improvements. compute-bound kernels cluster in the left half
+herent limitations in capturing pragma semantics and structural of the plot, where static fusion already reduces error relative
+hierarchies. While supplementing CDFGs with textual features to MPM but leaves headroom for further optimization. In
+partially mitigates this gap, critical structural information contrast, memory-bound kernels fall in the right "Danger Zone",
+such as precise pragma-loop bindings and nested control flow where overlapping structural representations between CDFG
+relationships remains inaccessible through naive text encoding and AST limit static fusion’s effectiveness compared to the
+alone. As illustrated in Table I, neither standalone CDFG nor MPM baseline. Notably, all points lie above the zero horizontal
+CDFG augmented with textual features can fully encompass the line, confirming that MFF-KAS delivers consistent performance
+syntax and high-level semantics uniquely provided by ASTs. gains across heterogeneous kernel architectures via adaptive
+To bridge this gap, we propose MFF, which introduces the AST modality selection.
+as a third modality to explicitly capture pragma attachments
+and nested loop hierarchies [16]. It thus complements CDFG                                B. Design Space Exploration.
+views that emphasize data/control flow and Text embeddings                                   1) Heuristic-based Design Space Exploration.: Heuristic-
+that lack explicit hierarchical syntax. To make this distinction                          based design space exploration has been demonstrated to
+concrete, consider #pragma HLS UNROLL factor=4 as                                         effectively solve multi-objective optimization problems. Previ-
+an example. This directive appears in Text representations                                ous work utilizing heuristic algorithms such as NSGA-II [8],
+merely as a sequence of discrete tokens, making it difficult to                           SA [9], and ACO [10] has achieved efficient design space
+establish structural associations with the target loop body. In                           exploration. To address the tendency of traditional heuristics
+CDFG, it is typically compressed into an auxiliary attribute                              to become trapped in local optima, Lattice-Traversing [17]
+of a loop node, which inadequately reflects the changes in                                integrates a Pareto-neighbor-based selection strategy with a
+parallelism and dataflow reorganization introduced by variations                          random selection strategy, effectively balancing exploration and
+in the unroll factor. In contrast, within the AST, the pragma can                         exploitation. To overcome the issues of slow convergence and
+be represented as an independent node attached directly to the                            hyperparameter sensitivity in conventional heuristics, HGBO-
+corresponding ForStmt, where both the unroll factor and the                               DSE [4] employs Bayesian optimization to effectively resolve
+loop-nesting hierarchy are explicitly visible. These comparisons                          these challenges. Furthermore, MOEDA [18] decomposes the
+indicate that, for HLS QoR prediction tasks requiring the                                 design space exploration problem into subproblems and solves
+preservation of both optimization directive parameters and                                each using multi-objective evolutionary algorithms, thereby
+their syntactic context, incorporating AST representations is                             identifying a superior Pareto front.
+both necessary and well justified [16].                                                      2) Reinforcement learning-based Design Space Exploration.:
+   Why KAS? Prevailing fusion strategies employ fixed feature                             The performance of heuristic-based design space exploration
+concatenation without accounting for the varying informational                            is constrained by the algorithms’ inability to adapt to specific
+utility across diverse kernel architectures. So no single modality                        benchmark features and their reliance on rigid, non-adaptive
+combination generalizes across diverse kernels and QoR metrics.                           search strategies. In contrast, IRONMAN-PRO [19] combines
+To address this, we develop a Kernel-Aware Selector (KAS) that                            the Actor–Critic (AC) and Policy Gradient (PG) to propose
+dynamically routes each unseen kernel to the optimal pretrained                           the RLMD approach, which adaptively leverages benchmark
+expert among seven modality subsets, effectively eliminating                              features and employs flexible exploration strategies for design
+

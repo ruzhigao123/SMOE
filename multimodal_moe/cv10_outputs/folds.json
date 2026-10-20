@@ -1,0 +1,431 @@
+{
+  "seed": 64,
+  "train_30": [
+    "gemm-p",
+    "gemm-blocked",
+    "mvt",
+    "3mm",
+    "bicg-large",
+    "stencil-3d",
+    "correlation",
+    "jacobi-1d",
+    "mvt-medium",
+    "spmv-crs",
+    "jacobi-2d",
+    "bicg-medium",
+    "symm-opt",
+    "atax",
+    "fdtd-2d-large",
+    "trmm-opt",
+    "heat-3d",
+    "symm",
+    "gesummv",
+    "stencil",
+    "atax-medium",
+    "aes",
+    "covariance",
+    "bicg",
+    "gesummv-medium",
+    "doitgen",
+    "gemm-p-large",
+    "nw",
+    "gemm-ncubed",
+    "gemver-medium"
+  ],
+  "n_folds": 10,
+  "hold_out": 3,
+  "val_ratio_kernels": 0.2,
+  "folds": [
+    {
+      "fold_id": 0,
+      "holdout_kernels": [
+        "doitgen",
+        "gesummv",
+        "3mm"
+      ],
+      "train_kernels": [
+        "heat-3d",
+        "symm",
+        "gemver-medium",
+        "bicg-medium",
+        "gemm-p-large",
+        "trmm-opt",
+        "fdtd-2d-large",
+        "bicg-large",
+        "spmv-crs",
+        "stencil-3d",
+        "jacobi-2d",
+        "gemm-ncubed",
+        "atax",
+        "atax-medium",
+        "covariance",
+        "symm-opt",
+        "gemm-blocked",
+        "gesummv-medium",
+        "mvt-medium",
+        "gemm-p",
+        "bicg",
+        "aes"
+      ],
+      "val_kernels": [
+        "mvt",
+        "correlation",
+        "jacobi-1d",
+        "stencil",
+        "nw"
+      ]
+    },
+    {
+      "fold_id": 1,
+      "holdout_kernels": [
+        "bicg-medium",
+        "trmm-opt",
+        "symm-opt"
+      ],
+      "train_kernels": [
+        "atax-medium",
+        "atax",
+        "bicg",
+        "covariance",
+        "jacobi-2d",
+        "gemm-p",
+        "gesummv",
+        "mvt-medium",
+        "gesummv-medium",
+        "aes",
+        "spmv-crs",
+        "symm",
+        "stencil",
+        "mvt",
+        "gemver-medium",
+        "heat-3d",
+        "correlation",
+        "gemm-blocked",
+        "nw",
+        "gemm-ncubed",
+        "gemm-p-large",
+        "3mm"
+      ],
+      "val_kernels": [
+        "jacobi-1d",
+        "doitgen",
+        "stencil-3d",
+        "fdtd-2d-large",
+        "bicg-large"
+      ]
+    },
+    {
+      "fold_id": 2,
+      "holdout_kernels": [
+        "spmv-crs",
+        "jacobi-1d",
+        "gemm-p"
+      ],
+      "train_kernels": [
+        "mvt-medium",
+        "symm-opt",
+        "aes",
+        "3mm",
+        "bicg-large",
+        "nw",
+        "symm",
+        "atax-medium",
+        "gemm-p-large",
+        "jacobi-2d",
+        "mvt",
+        "heat-3d",
+        "gemver-medium",
+        "gemm-blocked",
+        "bicg-medium",
+        "stencil-3d",
+        "covariance",
+        "gemm-ncubed",
+        "stencil",
+        "fdtd-2d-large",
+        "correlation",
+        "atax"
+      ],
+      "val_kernels": [
+        "bicg",
+        "doitgen",
+        "gesummv-medium",
+        "trmm-opt",
+        "gesummv"
+      ]
+    },
+    {
+      "fold_id": 3,
+      "holdout_kernels": [
+        "stencil-3d",
+        "atax",
+        "gemm-p-large"
+      ],
+      "train_kernels": [
+        "symm",
+        "gemm-p",
+        "trmm-opt",
+        "3mm",
+        "mvt",
+        "gemver-medium",
+        "gemm-blocked",
+        "nw",
+        "doitgen",
+        "fdtd-2d-large",
+        "spmv-crs",
+        "aes",
+        "bicg-large",
+        "gesummv-medium",
+        "stencil",
+        "jacobi-2d",
+        "atax-medium",
+        "jacobi-1d",
+        "symm-opt",
+        "gemm-ncubed",
+        "mvt-medium",
+        "correlation"
+      ],
+      "val_kernels": [
+        "gesummv",
+        "bicg-medium",
+        "bicg",
+        "covariance",
+        "heat-3d"
+      ]
+    },
+    {
+      "fold_id": 4,
+      "holdout_kernels": [
+        "gesummv-medium",
+        "gemver-medium",
+        "fdtd-2d-large"
+      ],
+      "train_kernels": [
+        "heat-3d",
+        "doitgen",
+        "jacobi-2d",
+        "jacobi-1d",
+        "covariance",
+        "gesummv",
+        "nw",
+        "gemm-p",
+        "bicg-large",
+        "mvt-medium",
+        "bicg-medium",
+        "mvt",
+        "trmm-opt",
+        "aes",
+        "atax-medium",
+        "correlation",
+        "spmv-crs",
+        "gemm-p-large",
+        "bicg",
+        "stencil-3d",
+        "gemm-blocked",
+        "3mm"
+      ],
+      "val_kernels": [
+        "gemm-ncubed",
+        "stencil",
+        "symm-opt",
+        "symm",
+        "atax"
+      ]
+    },
+    {
+      "fold_id": 5,
+      "holdout_kernels": [
+        "gemm-blocked",
+        "nw",
+        "mvt"
+      ],
+      "train_kernels": [
+        "spmv-crs",
+        "correlation",
+        "bicg",
+        "stencil",
+        "gemm-ncubed",
+        "symm-opt",
+        "jacobi-2d",
+        "jacobi-1d",
+        "mvt-medium",
+        "fdtd-2d-large",
+        "aes",
+        "symm",
+        "gemver-medium",
+        "3mm",
+        "gesummv",
+        "atax",
+        "bicg-large",
+        "gemm-p-large",
+        "gesummv-medium",
+        "stencil-3d",
+        "heat-3d",
+        "trmm-opt"
+      ],
+      "val_kernels": [
+        "doitgen",
+        "covariance",
+        "bicg-medium",
+        "gemm-p",
+        "atax-medium"
+      ]
+    },
+    {
+      "fold_id": 6,
+      "holdout_kernels": [
+        "mvt-medium",
+        "jacobi-2d",
+        "heat-3d"
+      ],
+      "train_kernels": [
+        "3mm",
+        "nw",
+        "bicg-large",
+        "atax-medium",
+        "trmm-opt",
+        "mvt",
+        "correlation",
+        "gemver-medium",
+        "atax",
+        "gemm-p-large",
+        "symm-opt",
+        "doitgen",
+        "covariance",
+        "gesummv-medium",
+        "stencil",
+        "jacobi-1d",
+        "gemm-p",
+        "spmv-crs",
+        "aes",
+        "bicg-medium",
+        "gesummv",
+        "symm"
+      ],
+      "val_kernels": [
+        "gemm-ncubed",
+        "stencil-3d",
+        "fdtd-2d-large",
+        "bicg",
+        "gemm-blocked"
+      ]
+    },
+    {
+      "fold_id": 7,
+      "holdout_kernels": [
+        "aes",
+        "stencil",
+        "atax-medium"
+      ],
+      "train_kernels": [
+        "gemm-p-large",
+        "covariance",
+        "fdtd-2d-large",
+        "spmv-crs",
+        "mvt",
+        "heat-3d",
+        "bicg-medium",
+        "gemm-ncubed",
+        "doitgen",
+        "bicg",
+        "atax",
+        "correlation",
+        "gemver-medium",
+        "jacobi-2d",
+        "symm-opt",
+        "gesummv",
+        "mvt-medium",
+        "3mm",
+        "stencil-3d",
+        "gesummv-medium",
+        "nw",
+        "symm"
+      ],
+      "val_kernels": [
+        "gemm-blocked",
+        "trmm-opt",
+        "bicg-large",
+        "gemm-p",
+        "jacobi-1d"
+      ]
+    },
+    {
+      "fold_id": 8,
+      "holdout_kernels": [
+        "symm",
+        "covariance",
+        "gemm-ncubed"
+      ],
+      "train_kernels": [
+        "gemver-medium",
+        "gemm-blocked",
+        "atax-medium",
+        "fdtd-2d-large",
+        "3mm",
+        "symm-opt",
+        "nw",
+        "mvt",
+        "bicg-medium",
+        "gesummv",
+        "stencil-3d",
+        "stencil",
+        "heat-3d",
+        "bicg-large",
+        "atax",
+        "aes",
+        "jacobi-2d",
+        "bicg",
+        "spmv-crs",
+        "gemm-p-large",
+        "jacobi-1d",
+        "doitgen"
+      ],
+      "val_kernels": [
+        "gesummv-medium",
+        "correlation",
+        "gemm-p",
+        "trmm-opt",
+        "mvt-medium"
+      ]
+    },
+    {
+      "fold_id": 9,
+      "holdout_kernels": [
+        "bicg",
+        "correlation",
+        "bicg-large"
+      ],
+      "train_kernels": [
+        "gemm-p-large",
+        "bicg-medium",
+        "gemm-blocked",
+        "stencil",
+        "stencil-3d",
+        "jacobi-1d",
+        "nw",
+        "gemm-p",
+        "trmm-opt",
+        "atax",
+        "gesummv-medium",
+        "symm-opt",
+        "jacobi-2d",
+        "mvt",
+        "gesummv",
+        "fdtd-2d-large",
+        "spmv-crs",
+        "covariance",
+        "heat-3d",
+        "gemver-medium",
+        "3mm",
+        "gemm-ncubed"
+      ],
+      "val_kernels": [
+        "atax-medium",
+        "symm",
+        "doitgen",
+        "mvt-medium",
+        "aes"
+      ]
+    }
+  ],
+  "note": "holdout=\u672a\u89c13\u6838; train/val \u6765\u81ea\u5176\u4f5927\u6838\uff0c\u9009best\u53ea\u7528val"
+}

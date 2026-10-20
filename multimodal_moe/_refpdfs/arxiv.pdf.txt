@@ -1,0 +1,197 @@
+                                                 SoberDSE: Sample-Efficient Design Space Exploration via
+                                                          Learning-Based Algorithm Selection
+                                                                                     Lei Xu, Shanshan Wang, and Chenglong Xiao†
+                                                                                      Department of Computer Science, Shantou University
+                                                                                                       Shantou, China
+                                                                                             {24lxu,sswang,chlxiao}@stu.edu.cn
+
+                                        Abstract
+                                        High-Level Synthesis (HLS) is a pivotal electronic design automa-
+                                        tion (EDA) technology that enables the generation of hardware
+arXiv:2603.00986v1 [cs.AR] 1 Mar 2026
+
+
+
+
+                                        circuits from high-level language descriptions. A critical step in
+                                        HLS is Design Space Exploration (DSE), which seeks to identify
+                                                                                                                                   (a) Framework for DSE using predictive models.
+                                        high-quality hardware architectures under given constraints. How-
+                                        ever, the enormous size of the design space makes DSE compu-
+                                        tationally prohibitive. Although numerous algorithms have been
+                                        proposed to accelerate DSE, our extensive experimental studies
+                                        reveal that no single algorithm consistently achieves Pareto domi-
+                                        nance across all problem instances. Consequently, the inability of
+                                        any single algorithm to dominate all benchmarks necessitates an
+                                        automated selection mechanism to identify the best-performing
+                                        DSE algorithm for each specific case. To address this challenge, we
+                                        propose the SoberDSE framework, which recommends suitable al-
+                                        gorithm based on benchmark characteristics. Experimental results
+                                        demonstrate that our SoberDSE framework significantly outper-                     (b) Actual ADRS obtained by heuristic techniques on five bench-
+                                        forms state-of-the-art heuristic-based DSE algorithms by up to 5.7                marks.
+                                        × and state-of-the-art learning-based DSE methods by up to 4.2
+                                        ×. Furthermore, compared to conventional classification models,                         Figure 1: Motivation of Our Proposed SoberDSE.
+                                        SoberDSE delivers superior accuracy in small-sample learning sce-
+                                        narios, with an average enhancement of 35.57%. Code and models                    power, performance, and area (PPA) metrics. However, identify-
+                                        are available at https://anonymous.4open.science/r/Sober-4377.                    ing the optimal parameter combination through Design Space Ex-
+                                                                                                                          ploration (DSE) often requires a considerable time investment, as
+                                        Keywords                                                                          the configuration space grows exponentially with the number of
+                                        High-Level Synthesis, Design Space Exploration, Algorithm Selec-                  pragma directives. Additionally, each high-level design iteration
+                                        tion, Reinforcement Learning                                                      can take anywhere from minutes to days to simulate using commer-
+                                                                                                                          cial HLS tools such as Vivado HLS or Vitis, which makes exhaustive
+                                        ACM Reference Format:
+                                                                                                                          exploration practically infeasible for complex designs. This com-
+                                        Lei Xu, Shanshan Wang, and Chenglong Xiao† . 2026. SoberDSE: Sample-
+                                        Efficient Design Space Exploration via Learning-Based Algorithm Selection.        putational bottleneck underscores the need for intelligent DSE
+                                        In . ACM, New York, NY, USA, 7 pages. https://doi.org/10.1145/nnnnnnn.            methodologies that can efficiently navigate large design spaces
+                                        nnnnnnn                                                                           without compromising solution quality.
+                                                                                                                             To address these challenges, a promising approach involves con-
+                                                                                                                          verting high-level designs into Control and Data Flow Graphs (CD-
+                                        1    INTRODUCTION                                                                 FGs) and leveraging graph representation learning techniques to
+                                        High-Level Synthesis (HLS) tools provide high-level, abstract in-                 extract structural features that capture both control and data depen-
+                                        terfaces that assist hardware designers in developing hardware                    dencies inherent in the original code. This enables rapid prediction
+                                        designs while avoiding low-level implementation complexities [1].                 of key performance metrics, such as latency and resource utilization,
+                                        By enabling programming at behavioral and register-transfer levels,               without relying on time-consuming HLS tool simulations. Further-
+                                        HLS significantly reduces the expertise barrier for hardware design.              more, heuristic methods [2–5] are employed to efficiently search
+                                        These tools also offer a comprehensive set of synthesis parame-                   for near-optimal synthesis parameters within the vast design space,
+                                        ters, including #pragma HLS unroll, #pragma HLS pipeline,                         achieving a dynamic balance among Power, Performance, and Area
+                                        and #pragma HLS array_partition, to guide optimization across                     (PPA) objectives. For example, as shown in Figure 1(a), the DSE
+                                                                                                                          algorithm conducts design space exploration based on specific op-
+                                        *Corresponding author: Chenglong Xiao (chlxiao@stu.edu.cn). This work is par-     timization objectives and benchmark characteristics. The process
+                                        tially sponsored by Guangdong Basic and Applied Basic Research Foundation
+                                        (2022A1515110712, 2025A1515010272, 2023A1515010077) and the Scientific Research   begins by checking whether termination conditions, such as max-
+                                        Project of Colleges and Universities in Guangdong Province (2021ZDZX1027).        imum iterations or convergence criteria, are satisfied. If met, the
+  PREPRINT - Accepted for publication at the 2026 Design Automation Conference (DAC)                                  Lei Xu, Shanshan Wang, and Chenglong Xiao†
+
+
+  Pareto approximate optimal solution set is output. Otherwise, the                    multi-objective optimization problems. Previous work utilizing
+  pre-trained graph neural network (GNN) model provides accurate                       heuristic algorithms such as NSGA-II [2], SA [3], and ACO [4]
+  predictions to guide subsequent exploration iterations, creating                     has achieved efficient design space exploration. To address the ten-
+  an efficient feedback loop that progressively refines the solution                   dency of traditional heuristics to become trapped in local optima,
+  quality while significantly reducing exploration time compared to                    Lattice-Traversing [7] integrates a Pareto-neighbor-based selection
+  conventional methods.                                                                strategy with a random selection strategy, effectively balancing
+     However, as established by the No Free Lunch (NFL) theorem                        exploration and exploitation. To overcome the issues of slow con-
+  [6], there is no single algorithm capable of achieving optimal per-                  vergence and hyperparameter sensitivity in conventional heuristics,
+  formance across all instances within a given class of optimization                   HGBO-DSE [8] employs Bayesian optimization to effectively re-
+  problems. This fundamental principle implies that any improve-                       solve these challenges. Furthermore, MOEDA [9] decomposes the
+  ment an algorithm exhibits on one set of problems will inevitably be                 design space exploration problem into subproblems and solves each
+  counterbalanced by degraded performance on another set. DSE, be-                     using multi-objective evolutionary algorithms, thereby identifying
+  ing a multi-objective optimization task involving trade-offs among                   a superior Pareto front.
+  conflicting metrics such as power, latency, and resource utilization,                   RL-based Design Space Exploration. The performance of
+  has been tackled in prior studies using a variety of methods, in-                    heuristic-based design space exploration is constrained by the al-
+  cluding heuristic algorithms and reinforcement learning (RL) based                   gorithms’ inability to adapt to specific benchmark features and
+  approaches. Nevertheless, consistent with the NFL theorem, none                      their reliance on rigid, non-adaptive search strategies. In contrast,
+  of these algorithms has been shown to consistently outperform all                    IRONMAN-PRO [10] combines the Actor–Critic (AC) and Policy
+  others across all instances. As illustrated in Figure 1(b), we conduct               Gradient (PG) to propose the RLMD approach, which adaptively
+  DSE using four heuristic algorithms non-dominated sorting genetic                    leverages benchmark features and employs flexible exploration
+  algorithm II (NSGA-II) [2], simulated annealing algorithm (SA) [3],                  strategies for design space exploration. This enables RLMD to dis-
+  ant colony optimization (ACO) [4], and Particle Swarm Optimiza-                      cover superior Pareto fronts compared to conventional heuristic-
+  tion (PSO) [5] on benchmarks including 2mm, 3mm, atax. bicg and                      based methods. QL-MOEA [11] enhances evolutionary algorithms
+  bicg-large with the Average Distance to Reference Set (ADRS) as                      by addressing their inherent limitation in autonomously select-
+  the performance metric (lower values indicate better performance).                   ing exploration strategies. It intelligently balances the exploration-
+  The results show that SA performs best on 2mm and atax, while                        exploitation trade-off during the search process, enabling a more
+  different algorithms excel on the remaining benchmarks. These                        thorough and efficient exploration of the design space.
+  experimental findings confirm that no DSE algorithm performs
+  optimally across all benchmarks, underscoring the necessity of an                    3 PRELIMINARY
+  automated system to recommend the most suitable algorithm on a
+                                                                                       3.1 Algorithm Selection
+  case-by-case basis.
+     To address this problem, we propose SoberDSE, a framework                         The algorithm selection philosophy, widely applied in multi-objective
+  that integrates the concept of algorithm selection to automatically                  optimization, suggests that complex algorithmic design is not the
+  recommend suitable algorithms for each benchmark based on the                        only approach to further optimization. Recommending a poten-
+  characteristics of the benchmark. Our main contributions are as                      tially optimal algorithm based on the characteristics of a given
+  follows:                                                                             problem instance is evidently more efficient. For a multi-objective
+                                                                                       optimization problem P, an algorithm selection framework can be
+• We implement most of existing DSE algorithms in the literature, in-                  formulated as follows [12]: given a set I of instances of problem
+  cluding seven heuristic techniques and three state-of-the-art (SOTA)                 P, a set A = {𝐴1, . . . , 𝐴𝑛 } of candidate algorithms, and a target
+  RL methods, and find that no single DSE algorithm is universally                     optimization metric 𝑚 : A × I that measures the performance of
+  optimal through extensive experiments.                                               any algorithm 𝐴𝑖 ∈ A on instance set I, the goal is to construct a
+• We redefine the research focus of DSE by integrating algorithm                       algorithm selector S that maps each problem instance 𝑗 ∈ I to an
+  selection to provide recommendations for individual benchmarks,                      algorithm S( 𝑗) ∈ A such that the overall performance of S on I
+  thereby mitigating the constraints imposed by the No-Free-Lunch                      is optimized according to metric 𝑚.
+  theorem.
+• To overcome the challenge of limited training data, we develop a                     3.2    Problem Formulation
+  hybrid approach that integrates supervised learning with reinforce-
+                                                                                       In this work, we propose to leverage the algorithm selection phi-
+  ment learning, enabling high-precision algorithm recommendation.
+                                                                                       losophy to identify high-performing DSE algorithms tailored to
+• Experimental results demonstrate that our proposed SoberDSE
+                                                                                       specific benchmarks. Accordingly, we frame the problem in terms
+  framework achieves highly accurate algorithm recommendations,
+                                                                                       of the following two subproblems:
+  delivering an average performance improvement of 81.06% over
+                                                                                       Problem 1: Build the Algorithmic Selection Model. For an FPGA
+  heuristic-based DSE algorithms and 68.80% over learning-based
+                                                                                       accelerator kernel (benchmark) 𝐵 described using a high-level C-
+  DSE methods.
+                                                                                       like language, its design space is denoted as 𝐼 . This scenario involves
+                                                                                       a candidate algorithm set A for DSE, an optimization objective
+  2    RELATED WORKS                                                                   ADRS, and a pre-trained Quality of Result (QoR) prediction model
+  Heuristic-based Design Space Exploration. Heuristic-based de-                        𝑃𝑀. For the optimization objective ADRS, we leverage candidate
+  sign space exploration has been demonstrated to effectively solve                    algorithms from set A to explore the benchmark 𝐵. The design
+SoberDSE: Sample-Efficient Design Space Exploration via Learning-Based Algorithm Selection                                 Lei Xu, Shanshan Wang, and Chenglong Xiao†
+
+
+configurations 𝑑𝑐 ∈ 𝐼 discovered during this exploration are then                       Table 1: The Training Benchmark Used for DSE Algorithm
+evaluated using a pre-trained model 𝑃𝑚 , which ultimately yields                        Recommendation.
+the performance result H (𝐵) for each algorithm A𝑘 ∈ A on the
+benchmark 𝐵. The objective is to find an algorithmic recommen-                          Benchmarks                       Functions                           |DS|
+dation function F that can approximate H (𝐵)𝑚𝑖𝑛 : 𝑚𝑖𝑛(H (𝐵)) for                                                       MachSuite [13]
+any given benchmark 𝐵 with any design space 𝐼 :                                         gemm-blocked O(n3) algorithm for dense matrix multiplication.        2,314
+                      min (𝐿𝑜𝑠𝑠 (H (𝐵) ′, H (𝐵)𝑚𝑖𝑛 ))                        (1)        gemm-ncubed     Blocked version of matrix multiplication.            7,152
+                       F                                                                                               Polyhedral [14]
+where H (𝐵) ′ is the approximate value generated by function F .                        atax          Matrix Transpose and Vector Multiplication.            2,644
+                                                                                        bicg           BiCG Sub Kernel of BiCGStab Linear Solver.            1054
+Problem 2: Identify the Pareto frontier Configurations. For the
+                                                                                        bicg-large     BiCG Sub Kernel of BiCGStab Linear Solver.            2,975
+benchmarks 𝐵, design space 𝐼 and F defined above, F recommends
+                                                                                        covariance               Covariance Computation.                  970,967,172
+a potentially optimal algorithm A𝑏𝑒𝑠𝑡 ∈ A based on the character-                       fdtd-2d         2-D Finite Different Time Domain Kernel.        18,329,692,529
+istics of 𝐵 to search for the Pareto frontier configurations 𝑃 𝑓 . The                  fdtd-2d-large   2-D Finite Different Time Domain Kernel.        70,303,226,437
+definition of Pareto frontier 𝑃 𝑓 is as follows:                                        gemm-p                        Matrix-multiply.                      409,905
+                                                                                        gemm-p-large                  Matrix-multiply.                      690,641
+                   𝑎(𝑑𝑃 𝑓 ) ≤ 𝑎(𝑑𝐼 ) 𝑎𝑛𝑑 𝑙 (𝑑𝑃 𝑓 ) ≤ 𝑙 (𝑑𝐼 )                 (2)
+                                                                                        gemver         Vector Multiplication and Matrix Addition.      100,977,795,072
+where 𝑑𝑃 𝑓 ∈ 𝑃 𝑓 , 𝑑𝐼 ∈ 𝐼 and 𝑃 𝑓 ⊆ 𝐼 . The function a(·) and l(·)                      gesummv          Scalar, Vector and Matrix Multiplication.           1,543
+represent the resource utilization and the latency of 𝑑𝑃 𝑓 and 𝑑𝐼 .                     heat-3d            Heat equation over 3D data domain.               71,511
+                                                                                        jacobi-1d             1-D Jacobi stencil computation.                2,871
+4     METHODOLOGY                                                                       mvt-medium        Matrix Vector Product and Transpose.              933,156
+                                                                                        syr2k                   Symmetric rank-2k update.                   340,234
+As illustrated in Figure 2, our proposed SoberDSE framework begins                      symm                    Symmetric matrix-multiply.                  50,265
+with the generation of training and inference data via the Dataset                      trmm                    Triangular matrix-multiply.                 43,463
+Generator ( A ). We first implement a DSE algorithm suite compris-                      trmm-opt                Triangular matrix-multiply.                 50,265
+ing seven heuristic algorithms and three reinforcement learning                         2mm                       2 Matrix Multiplications                492,787,501
+methods. Benchmarks are divided into training and inference sets,                       3mm                       3 Matrix Multiplications            17,658,216,447,701
+and the performance of all DSE algorithms on each benchmark is
+recorded to identify the optimal algorithm for each benchmark. The
+Benchmark Feature Graph Generator ( B ) then constructs feature                         the distance between 𝜆 and 𝜇. The average performance of the ten
+graphs for each benchmark. The supervised recommendation model                          algorithms in the DSE algorithm suite is used as the reference set
+( C ) is initially trained and used to initialize the agent’s state in the              for calculating the ADRS metric. Finally, we identify the algorithm
+RL recommendation model ( D ) by estimating algorithm selection                         ID achieving optimal performance (lowest ADRS value) for each
+probabilities. The agent interacts with the environment based on                        benchmark, which serves as the training and inference target for
+ground-truth optimal algorithm IDs, learning from experiences                           the subsequent recommendation model.
+stored in a buffer. During Inference ( E ), SoberDSE is evaluated
+on the inference dataset generated by the Dataset Generator ( A ).                      4.2    Benchmark Feature Graph Generator
+The pre-trained supervised and RL recommendation models ( B                             As discussed in Sections 3.1 and 3.2, while the recommendation
+and C ) collaborate to suggest algorithms, which are executed on                        model updates its parameters and biases based on training data to
+corresponding benchmarks to identify improved Pareto fronts.                            select algorithm IDs, the representation of benchmarks typically
+                                                                                        in high-level languages makes it challenging to fully capture their
+4.1     Dataset Generator                                                               characteristic features, which is crucial for the accuracy of the
+To construct the dataset for DSE algorithm recommendation, as                           recommendation algorithm. To address this issue, we propose the
+shown in Part ( A ) of Figure 2, we first implement a DSE algo-                         Benchmark Features Graph Generator (BFGG) ( B ), which repre-
+rithm suite consisting of seven heuristic algorithms (NSGA-II, SA,                      sent the benchmark in the form of feature graph (BFG) by using
+ACO, PSO, Lattice, HGBO-DSE, and MOEDA) and three RL algo-                              the method of generating CDFG. As illustrated in Figure 3, the
+rithms (AC, PG, and QL-MOEA). These algorithms are executed                             source code from benchmark is first converted to an intermediate
+on twenty benchmarks listed in Table 1, with the explored design                        representation (IR) using LLVM, followed by the generation of a
+configurations evaluated using a pre-trained ECoGNN [15] model                          BFG through ProGraML [16], which incorporates HLS directives
+for QoR prediction. The benchmarks used for training ECoGNN                             for enhanced semantic representation. Concurrently, following the
+are entirely separate from those employed for training the DSE                          GNN-DSE [17], pragma inserter constructs icmp nodes to augment
+algorithm recommendation model. To evaluate the performance of                          the BFG with pragma-specific information.
+DSE algorithms, we adopt ADRS as the evaluation metric:
+                                       1 ∑︁                                             4.3    Collaborative Recommendation Model
+                   𝐴𝐷𝑅𝑆 (Γ, Ω) =                  min 𝑓 (𝜆, 𝜇)               (3)        Due to the reconfigurable hardware nature of FPGA accelerator
+                                      |Γ|         𝜇 ∈Ω
+                                            𝜆∈Γ                                         kernels (benchmarks), the number of real-world benchmarks is in-
+where Γ represents the reference Pareto-optimal set, Ω denotes                          herently limited, which consequently restricts the number of bench-
+the approximate Pareto-optimal set, and the function 𝑓 computes                         marks available for our use. As a result, the data samples obtained
+

@@ -1,0 +1,218 @@
+                                                                                                                                                                                    2024 IEEE 42nd International Conference on Computer Design (ICCD)
+
+
+
+
+                                                                                                                                                              Rethinking High-Level Synthesis Design Space
+                                                                                                                                                                Exploration from a Contrastive Perspective
+                                                                                                                                                                                                 Huiliang Hong, Chenglong Xiao∗ ,Shanshan Wang
+
+                                                                                                                                                                                          Department of Computer Science, Shantou University, China
+                                                                                                                                                                                                        ∗ Corresponding author: Chenglong Xiao
+
+                                                                                                                                                                                                      E-mail:{22hlhong,chlxiao,sswang}@stu.edu.cn
+ 2024 IEEE 42nd International Conference on Computer Design (ICCD) | 979-8-3503-8040-8/24/$31.00 ©2024 IEEE | DOI: 10.1109/ICCD63220.2024.00035
+
+
+
+
+                                                                                                                                                        Abstract—In High-Level Synthesis (HLS), the design space of                    with different trade-offs in terms of performance, cost, and
+                                                                                                                                                     RTL implementations growing exponentially with the number                         power consumption, among other metrics, leading the design
+                                                                                                                                                     of directives, coupled with the expensive nature of the syn-                      space to be large-scale. Compounding the issue, the synthesis
+                                                                                                                                                     thesis process to obtain the characteristics of a single RTL                      process for obtaining the characteristics of one design is time-
+                                                                                                                                                     implementation, pose challenges in exhaustively exploring the
+                                                                                                                                                     design space to identify Pareto-optimal designs. To find Pareto-                  consuming, necessitating minutes to hours by invoking the
+                                                                                                                                                     optimal designs, most existing studies adopt regression methods                   HLS tool [1]. Consequently, HLS requires effective design
+                                                                                                                                                     or call HLS tools to provide the performance and cost of each                     space exploration approaches to navigate the extensive design
+                                                                                                                                                     design. Considering the essence of finding Pareto-optimal designs,                space.
+                                                                                                                                                     we observed that predicting the relative dominance relation-
+                                                                                                                                                     ship between designs is sufficient while predicting the absolute                     DSE approaches traverse the design space to discover
+                                                                                                                                                     performance and cost of each design is not a must. We pro-                        Pareto-optimal designs that strike the best balance between
+                                                                                                                                                     pose an alternative approach to identify Pareto-optimal designs                   conflicting objectives, such as performance and cost. To
+                                                                                                                                                     by establishing a Contrastive Learning (CL) framework that                        achieve efficient DSE, several state-of-the-art heuristic-based
+                                                                                                                                                     determines the dominance relationship between designs based
+                                                                                                                                                     on classification methods. Furthermore, we integrate the CL                       approaches, such as Cluster-based [2], Lattice-based [3], and
+                                                                                                                                                     framework with three state-of-the-art Design Space Exploration                    Genetic Algorithm [4], are utilized to navigate the design
+                                                                                                                                                     (DSE) approaches, namely CL-DSE, with the goal of effectively                     space. These approaches may require a large number of
+                                                                                                                                                     reducing the number of syntheses. Experimental comparisons of                     syntheses, leading to extended timeframes for completing the
+                                                                                                                                                     39 regression methods and 17 CL-assisted classification methods                   DSE task, which are further exacerbated when the synthesis
+                                                                                                                                                     reveal that the classification methods generally overwhelm the
+                                                                                                                                                     regression methods for predicting the dominance relationship                      time is prolonged. To find the Pareto-optimal designs, the
+                                                                                                                                                     between designs. Experimental results also reveal that the CL-                    essence is how to efficiently and accurately compare the
+                                                                                                                                                     DSE approaches can significantly decrease the overall running                     designs. Machine learning (ML) techniques that mainly work
+                                                                                                                                                     time by reducing the number of syntheses, while retaining                         in a regression way are widely adopted [5]–[7] to provide
+                                                                                                                                                     the quality of results in comparison to the DSE approaches.                       the estimation of performance and cost of each design to
+                                                                                                                                                     The proposed CL-DSE approaches are publicly available at
+                                                                                                                                                     https://github.com/hong64/CL-DSE.                                                 reduce the time for executing the tedious HLS process. In this
+                                                                                                                                                        Index Terms—High-Level Synthesis, Design Space Exploration,                    paper, we rethink HLS DSE from a constrative perspective
+                                                                                                                                                     Online Contrastive Learning, Classification                                       by proposing an online contrastive learning framework for
+                                                                                                                                                                                                                                       predicting the dominance relationship between designs. Our
+                                                                                                                                                                              I. I NTRODUCTION                                         work offers the following contributions:
+                                                                                                                                                        High-Level Synthesis (HLS) empowers designers to archi-
+                                                                                                                                                     tect Register-Transfer Level implementations, characterized                         •   A contrastive learning framework based on a binary clas-
+                                                                                                                                                     by performance and cost, at a high-level. In the context                                sification is introduced to determine the dominance re-
+                                                                                                                                                     of HLS, several functionally identical variants of the same                             lationship between designs through pairwise comparison.
+                                                                                                                                                     design can be generated without requiring changes to the                                This approach simplifies the prediction task and enhances
+                                                                                                                                                     behavioral description by using synthesis directives in the form                        the robustness of the model by inherently increasing the
+                                                                                                                                                     of pragmas that are tagged in the source code as comments.                              amount of available training data.
+                                                                                                                                                     This makes it possible for designers to conduct a design space                      •   Extensive experiments have been conducted to compare
+                                                                                                                                                     exploration (DSE) of the design and subsequently choose                                 the accuracy of 39 regression methods and 17 classifi-
+                                                                                                                                                     the microarchitecture that best suits the requirements. Thus,                           cation methods for predicting the dominance relationship
+                                                                                                                                                     there are numerous ways to implement a design at RTL                                    between designs. The results demonstrate that classifica-
+                                                                                                                                                                                                                                             tion methods generally outperform regression methods.
+                                                                                                                                                        This work was supported in part by Scientific Research Project of Col-           •   We integrate the Contrastive Learning (CL) framework
+                                                                                                                                                     leges and Universities in Guangdong Province (2021ZDZX1027), Guang-
+                                                                                                                                                     dong Basic and Applied Basic Research Foundation (2022A1515110712 and
+                                                                                                                                                                                                                                             with state-of-the-art DSE approaches. Experimental re-
+                                                                                                                                                     2023A1515010077).                                                                       sults show that CL-DSE can reduce a significant amount
+
+
+                                                                                                                                                  2576-6996/24/$31.00 ©2024 IEEE                                                 179
+                                                                                                                                                  DOI 10.1109/ICCD63220.2024.00035
+Authorized licensed use limited to: The Hong Kong University of Science and Technology (Guangzhou). Downloaded on January 07,2025 at 04:04:01 UTC from IEEE Xplore. Restrictions apply.
+                                                                                                 The actual dominance label domij is determined by comparing
+                                                                                                 characteristics (yi and yj ) of two designs as:
+                                                                                                                              (
+                                                                                                                                 0, if yi ⪰ yj
+                                                                                                                    domij =                              (2)
+                                                                                                                                 1, else
+                                                                                                                yi ⪰ yj ⇔ Ai ⩾ Aj and Li ⩾ Lj                      (3)
+                                                                                                 domij = 0 indicates that design di is ”dominated”, meaning
+                                                                                                 it has no advantage over design dj in terms of both area
+                                                                                                 and latency. Conversely, domij = 1 indicates a ”dominant”
+                                                                                                 relation, signifying that design di has an advantage over design
+                                                                                                 dj at least one of the multiple objectives. By comparing each
+                                                                                                 pairs in D, the available volume of Dcl for binary classification
+                        Fig. 1. The overview of the proposed CL-DSE framework.                   task inherently doubles compared to the original dataset.
+
+                      of synthesis, while maintaining the quality of results                     C. Learning
+                      compared to the original DSE approaches.                                      In this paper, we train one classifier based on the contrastive
+                                                                                                 samples in Dcl . Since the classifier is optional, seventeen
+                                                                                                 classifier’s performance are evaluated in the extensive ex-
+                                      II. P ROPOSED M ETHOD
+                                                                                                 periments to choose one appropriate classifier, where the
+                A. Overview                                                                      XGBoost classifier is finally selected. The XGBoost classifier
+                                                                                                 integrates K weak learners with lower classification accuracy,
+                   The overall CL-DSE framework, depicted in Fig.1, consists                     optimizing them sequentially in a boosting manner to generate
+                of two components: Design Space Exploration and Contrastive                      a strong model with high accuracy. Given one contrastive
+                Learning (CL). In the CL component, we train a classifier                        feature xi ||(xi − xj ) as input, the output of the model can
+                using historical synthesized paired designs collected during                     be represented as:
+                the DSE process, enabling it to comprehend the contrastive
+                differences among designs. The DSE component’s objective is                                             ˆ ij = clf (xi ||(xi − xj ))
+                                                                                                                [prob, dom]                                        (4)
+                to steer the search process towards the promising area in the                    where prob represent the probability of its predicting dom-
+                design space, generating various progressive candidate designs                   inance label domˆ ij . We select the cross entropy (CE) loss
+                for CL component identification.                                                 function to quantify the difference between the predicted
+                   The whole CL-DSE approach consists of four main pro-                          dominance label dom  ˆ ij and the actual dominance label domij
+                cedures: Initialization, Exploration, CL-assisted Selection and                  to guide the classifier training.
+                Reference Front Update. The initialization phase establishes
+                an initial reference front. The exploration phase discovers new                  D. Inference
+                candidates for synthesis. The CL-assisted Selection employs                          The inference phase aims to infer the dominance relations
+                the embedded CL component to identify the pros and cons of                       between the candidate c and the current reference front designs
+                the candidates. Candidates inferred as superior are synthesized                  ri , further select the predicted promising candidates for HLS
+                using the HLS tool, with results updating the reference front                    synthesis. For each pair < c, ri >, the CL framework infer
+                and being collected in a historical archive for future training.                 their dominance relation dom  ˆ cr based on the trained classifier.
+                                                                                                                                   i
+                The final reference front will be output until the DSE exit                           ˆ
+                                                                                                 domcri = 0 indicates that the candidate is dominated by
+                condition is meet. The CL-assisted Selection can be summa-                       the reference design. In contrast, dom   ˆ cr = 1 signifies the
+                                                                                                                                              i
+                rized in three parts: Comparison, Learning, Inference, whose                     candidate is dominant. Summarize each inference on the
+                particular realization is described as follows.                                  reference design ri and candidate c , the correlation between
+                                                                                                 the candidate and the reference front can be divided into two
+                B. Comparison                                                                    scenarios:
+                                                                                                     • the candidate is dominant over all reference designs.
+                   The comparison process generates a contrastive dataset
+                                                                                                     • the candidate only partially dominates over the reference
+                from the historical archive D for model training, which is
+                                                                                                        designs or may not dominate any reference designs at all.
+                represented as:
+                                                                                                 Candidates in the first scenario are considered more promising
+                          Dcl = {(xi || (xi − xj ), domij )|xi , xj ∈ D}             (1)         to improve the reference front update and are therefore selected
+                                                                                                 for HLS synthesis. Their synthesis results will be collected in
+                where the contrastive samples are consist of two aspects: con-                   the history archive for use in subsequent training iterations.
+                trastive feature and dominance label. The contrastive feature                    Candidates in the second scenario will be discarded and
+                xi ||(xi − xj ) is established by sequentially concatenating the                 marked so that the DSE approach can disregard them in future
+                configuration vector xi and the differential vector (xi − xj ).                  iterations.
+
+
+
+
+                                                                                           180
+
+Authorized licensed use limited to: The Hong Kong University of Science and Technology (Guangzhou). Downloaded on January 07,2025 at 04:04:01 UTC from IEEE Xplore. Restrictions apply.
+                                                                                               in the scikit-learn toolbox. For each benchmark, we repeat
+                                                                                               the evaluation of each model 20 times to obtain its average
+                                                                                               performance. In each evaluation, |DS| × 5% samples are
+                                                                                               randomly selected for the 5-fold cross-validation.
+                                                                                                  In Fig. 2, the y-axis reports the ML models’ names and
+                                                                                               their IDs. The results are listed in the order of the average
+                                                                                               accuracy over all benchmarks. We can make the following
+                                                                                               observations: ⃝1 Among the 17 classifiers, the highest achieved
+                                                                                               accuracy surpasses the accuracy of the most proficient re-
+                                                                                               gressor (ExtraTreesRegressor), identified from a pool of 39
+                                                                                               regressors, by a margin of 1.86%. ⃝    2 The number of CL
+                                                                                               classifiers (=8) listed in the top ten models far exceeds the
+                                                                                               number of regressors (=2), indicating the robustness of the
+                                                                                               CL classifiers. ⃝
+                                                                                                               3 Ensemble learning techniques achieve higher
+                                                                                               performance across both CL classifiers (c8, c2, c7, c5, c1, c4,
+                                                                                               c3) and regressors (r18, r4).
+                                                                                               C. Evaluation of the proposed CL-DSE approaches
+                                                                                                 In the experiments, we compare the CL-DSE and DSE
+                                                                        classifier             approaches on two evaluation metrics: Average Distance from
+                                                                                               the Referenced Set (ADRS), the DSE time (TDSE ). The ADRS
+                                                                                               metric is used for measuring the quality of the results (QoRs),
+                                                                                               which can be calculated as:
+                                                                                                                         1    X
+                Fig. 2. Prediction accuracy of dominance relationship achieved by 39                   ADRS(P, R) =         ·     min (Distance(pi , ri ))
+                regressors and 17 CL-based classifiers.                                                                 |P | p ∈P ri ∈R
+                                                                                                                                 i
+
+                                                                                                                                 A(ri ) − A(pi ) L(ri ) − L(pi )
+                                  III. E XPERIMENTAL R ESULTS                                       Distance(pi , ri ) = max(|                  |, |             |)   (5)
+                                                                                                                                     A(pi )          L(pi )
+                A. Experiments Setup
+                                                                                               where A(·) quantify one design’s resource consumption as:
+                   The benchmarks for experiments are derived from DB4HLS
+                                                                                                          1      F Fi      LU Ti       BRAMi       DSPi
+                [8], which is a publicly available HLS database based on                        Areai =     ∗(          +           +           +          )
+                                                                                                          4    F Favail   LU Tavail   BRAMavail   DSPavail
+                the benchmark functions in Machsuite, providing well-defined                                                                               (6)
+                design spaces and related synthesis outcomes. We integrated
+                                                                                                L(·) is the average latency to measure one design’s perfor-
+                the proposed contrastive learning framework with three state-
+                                                                                               mance. The DSE time is coarsely calculated as:
+                of-the-art DSE methods: Lattice-Traversing [3] and Cluster-
+                Based [2] and ϵ-GA [4], which are labeled as CL-Cluster, CL-                                       TDSE = runtime + Thls                              (7)
+                Lattice and CL-ϵ-GA respectively. Lattice-Traversing, Cluster-
+                Based and ϵ-GA are three effective synthesis-driven DSE                        where runtime represents the time for running the DSE
+                approaches, which are advantageous in accuracy, transfer and                   approach (excluding the time for executing the synthesis
+                implementation [9]. We run the source codes of Lattice-                        process) and Thls represents the time for synthesizing designs.
+                Traversing and Cluster-Based from [3] and re-implemented the                      DSE Time. We compare the overall DSE time of CL-
+                ϵ-GA according to pseudo-code in [4]; setting the radius hyper-                DSE approaches and DSE approaches (Table I). The Improv.
+                parameter of Lattice-Traversing to 1 and keep the Cluster-                     columns report the improvement achieved by CL-DSE ap-
+                Based’s hyper-parameters unchanged. Furthermore, the CL-                       proaches over DSE approaches on DSE time. We can make
+                DSE (CL-Lattice, CL-Cluster, CL-ϵ-GA) and DSE (Lattice-                        the following observations: ⃝  1 The integration of the CL
+                Traversing, Cluster-Based, ϵ-GA) use identical initial samples                 component can greatly reduce the synthesis time; respectively
+                to further exclude the random effects.                                         reducing 30.03, 9.25, and 0.52 hours in Lattice-Traversing, ϵ-
+                                                                                               GA and Cluster-Based on average. ⃝   2 The DSE time heavily
+                B. Regression vs Classification                                                depends on the synthesis time. With greatly reducing the
+                   We first conduct an extensive experiments on comparing                      synthesis time, the DSE time of the Lattice-Traversing, ϵ-GA,
+                the prediction accuracy of dominance relationship achieved                     and Cluster-Based approach can be accelerated by 5.3x, 2.4x,
+                by 39 regressors and 17 classifiers which are available from                   and 1.1x respectively. ⃝
+                                                                                                                      3 The CL-DSE’s runtime is sometimes
+                the scikit-learn toolbox. Experiments are carried out on the                   increased due to the the model training and prediction requires
+                selected benchmark functions, specifically those with an as-                   for the extra time. However, this extra time is not significant.
+                sociated design space size surpassing 100. For classification                     ADRS. Table II presents a comparison of the average ADRS
+                methods, we adopt the proposed contrastive learning com-                       values achieved by both the CL-DSE and the original DSE
+                ponent for training and inference. The hyper-parameters for                    approaches on each benchmark. It should be noted that the
+                each model are retained at their default settings, as specified                dominance prediction model in CL-DSE is trained with the
+
+
+
+
+                                                                                         181
+
+Authorized licensed use limited to: The Hong Kong University of Science and Technology (Guangzhou). Downloaded on January 07,2025 at 04:04:01 UTC from IEEE Xplore. Restrictions apply.
+

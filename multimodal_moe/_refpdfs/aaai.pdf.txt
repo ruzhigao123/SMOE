@@ -1,0 +1,207 @@
+                                  The Thirty-Ninth AAAI Conference on Artificial Intelligence (AAAI-25)
+
+
+
+
+Hierarchical Mixture of Experts: Generalizable Learning for High-Level Synthesis
+                   Weikai Li, Ding Wang, Zijian Ding, Atefeh Sohrabizadeh, Zongyue Qin,
+                                         Jason Cong, Yizhou Sun
+                                          University of California, Los Angeles
+        weikaili@cs.ucla.edu, allenwang2333@gmail.com, {bradyd, atefehsz, qinzongyue, cong, yzsun}@cs.ucla.edu
+
+
+
+                            Abstract                                        is relatively easy to design the program, it heavily requires
+                                                                            hardware knowledge to design the pragmas, and different
+  High-level synthesis (HLS) is a widely used tool in design-
+                                                                            pragma designs can lead to significantly different FPGA
+  ing Field Programmable Gate Array (FPGA). HLS enables
+  FPGA design with software programming languages by com-                   performances, posing a great challenge for software devel-
+  piling the source code into an FPGA circuit. The source code              opers (Sohrabizadeh et al. 2022). Recent works have au-
+  includes a program (called “kernel”) and several pragmas that             tomated pragma design for programs, employing heuristics
+  instruct hardware synthesis, such as parallelization, pipeline,           methods or machine learning methods. The heuristic meth-
+  etc. While it is relatively easy for software developers to de-           ods use bottleneck analysis (Sohrabizadeh et al. 2021) or
+  sign the program, it heavily relies on hardware knowledge                 non-linear programming based on lower-bound objective
+  to design the pragmas, posing a big challenge for software                function (Pouget, Pouchet, and Cong 2024a,b). The ma-
+  developers. Recently, different machine learning algorithms,              chine learning methods train a surrogate model to predict the
+  such as GNNs, have been proposed to automate the pragma                   FPGA’s performance from the source code, so that we can
+  design via performance prediction. However, when applying
+                                                                            rely on the model prediction to find the best pragmas with-
+  the trained model on new kernels, the significant domain shift
+  often leads to unsatisfactory performance. We propose a more              out running time-consuming HLS. Since HLS data is very
+  domain-generalizable model structure: a two-level hierarchi-              scarce, it is difficult to train a large language model, and
+  cal Mixture of Experts (MoE), that can be flexibly adapted to             graph neural networks (GNNs) that are based on the control
+  any GNN model. Different expert networks can learn to deal                data flow graph (Sohrabizadeh et al. 2022; Bai et al. 2022;
+  with different regions in the representation space, and they              Sohrabizadeh et al. 2023; Ustun et al. 2020; Wu, Xie, and
+  can utilize similar patterns between the old kernels and new              Hao 2023; Wu et al. 2022a) are widely utilized. Some very
+  kernels. In the low-level MoE, we apply MoE on three natural              recent work (Qin et al. 2024) explores using both GNN and
+  granularities of a program: node, basic block, and graph. The             lightweight language models.
+  high-level MoE learns to aggregate the three granularities for
+  the final decision. To train the hierarchical MoE stably, we                 While machine learning models have better learning abil-
+  further propose a two-stage training method to avoid expert               ity than the heuristic methods, they do not generalize well
+  polarization. Extensive experiments verify the effectiveness              to unseen kernels. In real-world applications, we often en-
+  of the proposed hierarchical MoE. We publicized our codes                 counter new circuit design requirements. The model trained
+  at https://github.com/weikai-li/HierarchicalMoE.                          on existing kernels usually fails to perform well on new ker-
+                                                                            nels. This can be viewed as a domain generalization (Bai
+                                                                            et al. 2022; Kwon and Carloni 2020) problem, where each
+                        Introduction                                        kernel is a domain. Note it is very time-consuming to run
+With the heated demand for domain-specific accelerators,                    HLS to acquire the labels on new kernels, with each run
+field-programmable gate arrays (FPGA) are widely used. It                   taking minutes to hours (Sohrabizadeh et al. 2023), thus
+is, however, labor-intensive to write register-transfer-level               data-efficient fine-tuning is required. Domain generaliza-
+hardware description languages, such as VHDL and Verilog.                   tion methods for GNN usually employ adversarial train-
+High-level synthesis (HLS) provides a much easier solution                  ing to align the representation space between different do-
+by compiling a source code written in a software program-                   mains (Dai et al. 2019; Zhang et al. 2019; Wu et al. 2020;
+ming language, such as C and MatLab, into an FPGA cir-                      Shen et al. 2023), or do data augmentation to learn invari-
+cuit (Cong et al. 2011, 2022; Schafer and Wang 2019).                       ant representation under risk extrapolation (Wu et al. 2022b;
+   The source code consists of a program (also called “ker-                 Liu et al. 2023a). However, these approaches are not appli-
+nel”) that describes the FPGA’s functional behaviors, and                   cable to the HLS prediction task, as the differences between
+several pragmas inserted in the program that instruct the                   kernels are informative for the prediction, so forcing them to
+hardware synthesis process, such as parallelization, pipeline,              the same distribution does not work.
+etc., as illustrated in the code snippets in Fig. 1. While it
+                                                                               Nonetheless, a unique opportunity of the HLS prediction
+Copyright © 2025, Association for the Advancement of Artificial             task is that kernels usually share some similar substructures,
+Intelligence (www.aaai.org). All rights reserved.                           as shown in Fig. 1. It could be beneficial if we can leverage
+
+
+                                                                    18476
+   Previous unique parts
+
+   for (j = 0; j < 80; j ++) {                                                                                                              Graph
+                                                                   …                                       Graph pooling                representation
+      mean[j] = 0.0;
+      for (i = 0; i < 100; i++) {
+         mean[j] += data[i][j];             Graph construction                                           Only select one granularity
+      }                                                                                                      to apply MoE. We
+      mean[j] /= float_n; Orange:                                              Gating                     aggregate various MoEs           Gating
+   }                        similar block                                      network                                                     network
+                                                                                                            by hierarchical MoE.
+   Later unique parts
+                                                                   0.4        0.15         0.35          0.1                   0.3       0.05          0.1           0.5
+Code snippet from the “Covariance” kernel                         Block      Block        Block         Block                Graph      Graph         Graph          5
+                                                                                                                                                                    Graph
+                                                                 Expert 1   Expert 2     Expert 3      Expert 4             Expert 1   Expert 2      Expert 3      Expert 4
+                                                                   0.38       0.16         0.36          0.1                  0.05        0.5          0.05           0.4
+   Previous unique parts
+                                                                                                  Each expert’s                                          Each expert’s
+                                                                                Gating            weight                                   Gating
+   for (j = 0; j < 80; j ++) {                                                                                                                           weight
+                                                                                network                                                    network
+      mean[j] = 0.0;
+      for (i = 0; i < 100; i++) {                                                  Similar blocks (orange)                                         Different blocks and
+         mean[j] += data[i][j];                                                     utilize similar experts                                       graphs (purple) utilize
+      }                                     Graph construction       …
+                                                                                                                                                     different experts
+      mean[j] /= float_n; Orange:
+   }                        similar block                                                                  Graph pooling                    Graph
+                                                                                                                                        representation
+   Later unique parts                                                                Pseudo
+                                                          Normal nodes
+Code snippet from the “Correlation” kernel                 of data and              Nodes of
+                                                           instructions            basic blocks
+
+
+Figure 1: Motivation of utilizing MoE. The two kernels share a similar nested loop, while the other parts are different. Similar
+parts can utilize similar experts via similar gating, while different parts can utilize different experts. This is just an illustration.
+Actually, we do not apply MoE on different granularities in the same model in this way. We aggregate them like Figure 2.
+
+such similarities. We thus propose a two-level hierarchical                                 conduct extensive experiments on the largest HLS bench-
+mixture of experts (MoE) to address this issue. MoE (Ja-                                    mark dataset, HLSyn (Bai et al. 2023), and the experiment
+cobs et al. 1991; Shazeer et al. 2017) uses several expert net-                             results reveal the effectiveness of hierarchical MoE. In sum-
+works instead of a single fixed network, and it computes the                                mary, we make the following contributions:
+weighted sum of their outputs. Different experts can special-                                • We identify the difficulties of domain generalizable
+ize in different regions in the hidden representation space, so                                learning in HLS prediction and formalize this problem.
+that similar substructures in different domains can be pro-
+                                                                                             • We propose hierarchical MoE to address these challenges
+cessed by the same experts. A gating network computes the
+                                                                                               and a two-stage training approach to stabilize its training.
+expert assignment, which learns which expert should deal
+with which substructure. GraphMETRO (Wu et al. 2024) ap-                                     • Extensive experiments verify the effectiveness of our
+plies MoE to improve GNNs’ generalizability by predefin-                                       methods, where the average speedup of the FPGA design
+ing a set of domain shifts and training each expert to deal                                    is 26.6% higher than that of the baseline method.
+with one type of domain shift by data augmentation. We
+take an orthogonal direction, eliminate the need for hard-                                                                 Related Work
+ware knowledge to define the domain shifts, and focus on                                    Machine Learning for HLS Prediction
+the model structure rather than data augmentation.                                          There are two directions for HLS pragma design automa-
+   Another unique opportunity for HLS prediction is that the                                tion. The first direction is heuristic-driven. AutoDSE (Sohra-
+input graph naturally has three levels of granularity: nodes,                               bizadeh et al. 2021) uses bottleneck-guided searching based
+blocks, and the whole graph. MoE can be constructed on ei-                                  on the HLS feedback, and it is well-generalizable. Non-
+ther of these three granularities. A natural question is which                              linear programming performs well on affine kernels based
+granularity to use. It is a hard task as different kernels ben-                             on a lower-bound objective function (Pouget, Pouchet, and
+efit from different granularities. Simply applying MoE on                                   Cong 2024a,b). The second direction is data-driven, which
+all three granularities in one model does not work. There-                                  trains a surrogate machine learning model to predict the
+fore, we propose a higher-level MoE to aggregate the three                                  FPGA’s latency and resource utilization. GNNs (Sohra-
+low-level MoEs according to the need. Nonetheless, opti-                                    bizadeh et al. 2022, 2023; Ustun et al. 2020; Wu et al. 2022a;
+mization with the hierarchical MoE is challenging. Since the                                Wu, Xie, and Hao 2023, 2021; Qin et al. 2024) are widely
+three low-level MoEs are different, training easily leads to                                used. While machine learning models could perform better
+expert polarization. We propose a two-stage training to sta-                                than heuristic methods with sufficient training data, they suf-
+bilize the training. To the best of our knowledge, while some                               fer from poor generalizability. Several previous works have
+papers (Shazeer et al. 2017) have studied hierarchical MoE                                  tried to solve this issue. (Ferretti et al. 2020) transforms the
+to improve memory efficiency, this is the first study that                                  best pragma design from the most similar source kernel to
+demonstrates the performance gain of hierarchical MoE. We                                   the target kernel, but its transformation is too simple and
+
+
+                                                                                   18477
+highly limited. (Kwon and Carloni 2020) trains a separate                          For a new kernel Dtest , we consider the constraint of data
+domain adaptor for each domain, while (Bai et al. 2022)                            scarcity where we only use k samples from the dataset
+uses the meta-learning method, MAML (Finn, Abbeel, and                             D(k) ⊂ Dtest , |D(k) | = k, to fine-tune the model. After
+Levine 2017), to find a generalizable parameter initializa-                        fine-tuning, there are two ways of evaluation: offline evalua-
+tion. However, since we have many kernels, it is difficult to                      tion and online evaluation. In the offline evaluation, we eval-
+train MAML to get stable results. We only have hundreds                            uate the MSE on the left-out test samples: Dtest \ D(k) . In
+of data for each kernel, so it is difficult to train an adaptor.                   the online evaluation, we do design space exploration (DSE)
+Instead, we explore an orthogonal direction: to improve the                        to search for good pragma designs. Based on the fine-tuned
+model structure’s generalizability.                                                model’s prediction, we select the top M designs to run HLS,
+                                                                                   and evaluate the speedup (M is set to 10 in our experiments).
+Domain Generalization for Graph Neural Network
+Domain generalization aims to reduce the performance                               HARP Model
+gap between the source and target domains. Most related                            The proposed hierarchical MoE can be adapted to any GNN
+works (Dai et al. 2019; Zhang et al. 2019; Wu et al. 2020;                         model. We use one of the SOTA GNN models for HLS
+Shen et al. 2023) employ adversarial training to align the                         prediction, HARP (Sohrabizadeh et al. 2023), as the base
+representation space between the source and target domains.                        model. Since the original ProGraML graph is not good at
+Some papers (Wu et al. 2022b; Liu et al. 2023a) design                             modeling long-range dependency, HARP creates a “pseudo
+specific data augmentation methods and learn invariant rep-                        node” for each basic block and connects it with every node
+resentations under risk extrapolation. However, we cannot                          within that basic block. A basic block is a sequence of in-
+directly align the representation space of different kernels                       structions with a single entry point and a single exit point
+since their difference is large and is useful for the prediction.                  where the terminator instruction can be a branch, return, etc.
+GraphMETRO (Wu et al. 2024) predefines several types of                            We illustrate HARP’s model structure in the appendix. We
+domain shifts and uses MoE to deal with them, where each                           use V to denote the set of all nodes and VB to denote the
+expert deals with one type. We take an orthogonal direction                        set of pseudo nodes. HARP consists of five components: (1)
+and eliminate the need for hardware knowledge to define the                        GNN encoder: it consists of 6 GNN layers and learns node
+types of domain shifts, and our model based on the three                           representation; (2) Pragma MLP: it uses an MLP for each
+granularities is specifically designed for this task.                              pragma type to transform the representation of pseudo nodes
+                                                                                   that are modified by that pragma type; (3) Another GNN
+Mixture of Experts (MoE)                                                           layer after pragma MLP: it further updates the node repre-
+MoE uses several expert networks and calculates the                                sentations; (4) Graph pooling: it performs graph pooling on
+weighted sum of their outputs (Jacobs et al. 1991; Shazeer                         pseudo nodes VB to form one graph representation and on
+et al. 2017). It is useful in domain transfer learning in com-                     normal nodes V \ VB to form another, then concatenates the
+puter vision (Li et al. 2023; Zhong et al. 2023). It has also                      two; (5) Output MLP: it makes the final prediction.
+been utilized in GNN to improve the performance (Wang
+et al. 2023; Han et al. 2024), diversify node represen-                                                     Methods
+tations in fairness-augmented graphs (Liu et al. 2023b),
+and deal with class imbalance (Hu et al. 2021). Previ-
+                                                                                   Low-Level Mixture of Experts
+ous work (Shazeer et al. 2017) has employed hierarchical                           A unique opportunity for the HLS prediction task is that the
+expert routing to improve memory efficiency, enabling a                            input graph has three granularities: normal nodes that repre-
+larger number of experts. However, previous papers have not                        sent data and instructions, pseudo nodes that represent basic
+shown the performance gain of hierarchical MoEs over reg-                          blocks, and the whole graph that represents a source code
+ular MoEs when using the same number of total experts.                             file. If a data point from the target kernel shares a similar
+                                                                                   statement (node), basic block, or the whole code (graph)
+                          Preliminary                                              with a data point from the training kernels, MoE could be
+                                                                                   helpful. Thus, we consider employing MoE on the three
+Task Definition                                                                    granularities: MoE on all nodes including normal nodes and
+HLS prediction is formalized as a graph regression task. Fol-                      pseudo node (node MoE), MoE only on pseudo nodes (block
+lowing previous works (Sohrabizadeh et al. 2022, 2023),                            MoE), and MoE on the graph (graph MoE). Based on our
+we utilize ProGraML (Cummins et al. 2021) graph to rep-                            pre-exploration, the best practice is to apply MoE in the
+resent a source code, which is a control data flow graph.                          components after the pragma MLP, since the experts need
+Nodes represent instructions, variables, and constant val-                         to share the same encoder and pragma MLPs. In our pre-
+ues, and edges represent the control flow and data flow. A                         exploration, we found that the best structure of the gating
+GNN model is trained to predict the FPGA’s latency and the                         network is a linear layer. The model structures are shown in
+utilization of four resources: LUT, FF, DSP, and BRAM.                             Figure 2.
+In the domain generalization setting, we train the model                              Node MoE. For the MoE that operates on all nodes, we
+on N source kernels D(train) = {D1 , D2 , ..., DN }, where                         apply it on the GNN layer after the pragma MLP. We train
+Di = {(Xi , Ti1 , Yi1 ), (Xi , Ti2 , Yi2 ), ..., (Xi , Tiin , Yiin )} is           n GNN layers of the same structure as n experts. We denote
+the i-th kernel containing in samples, and each sample con-                        the representation of node vi after the pragma MLP as hi ∈
+sists of a program X, a pragma design T , and a label Y .                          Rd . The node MoE is formulated as:
+
+
+                                                                           18478
+

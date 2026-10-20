@@ -1,0 +1,692 @@
+         One Fusion Does Not Fit All: Kernel-Aware
+         Multimodal Expert Selection for HLS QoR
+                        Prediction
+
+   Abstract—High-Level Synthesis (HLS) design space explo-          structures and QoR have become the dominant paradigm [4].
+ration (DSE) demands fast and accurate Quality-of-Results           The upper bound of QoR prediction performance largely
+(QoR) prediction across diverse pragma configurations to avoid      depends on the quality of the input representation. When
+expensive repeated synthesis. Existing learning-based predictors
+mostly rely on fixed combinations of control/data-flow graphs       pragma parameters or their attachment to specific loops and
+(CDFGs) and textual features, failing to fully capture source-      statements are not preserved in the model input, even stronger
+level syntax such as pragma–loop associations and loop nesting,     GNN architectures struggle to consistently capture their impact
+and offering limited generalization across kernels and QoR          on performance and resource metrics.
+metrics. To address these limitations, we propose a Multimodal         Along the graph-based QoR prediction line, GNN-DSE [4]
+Feature Fusion (MFF) framework that integrates CDFG, abstract
+syntax tree (AST), and source-code Text to build comprehensive      encodes HLS programs as control–dataflow graphs (CD-
+program representations for HLS QoR prediction. Second, we          FGs) and employs GNNs to learn operator dependencies
+train seven modality specific fusion experts, one for each non      and dataflow relationships, enabling QoR estimation without
+empty subset of CDFG, AST, Text, each performing multi output       repeatedly invoking synthesis. HGBO-DSE [5] introduces a
+regression over five QoR metrics (Latency, LUT, FF, DSP, and        hierarchical graph predictor (HGP) that improves prediction
+BRAM). Through extensive experiments, we discover for the
+first time that no single fixed modality combination dominates      and search efficiency in multi-objective scenarios through
+across all kernels and QoR metrics. Motivated by this finding,      multi-granularity CDFGs. IronMan-Pro [6] further strengthens
+we propose a meta-learning based kernel-aware selector (KAS)        GNN architectures and message passing over program graphs
+that dynamically chooses the most suitable pretrained expert for    exported from HLS tools. Although effective for modeling
+each unseen kernel and QoR metric at inference time. On unseen      dependencies and dataflow, these methods adopt a CDFG-
+test kernels, trimodal fusion based on MFF (AST+CDFG+Text)
+reduces macro-averaged All RMSE by 13.1%–52.9% over SOTA            centric, graph-only representation and therefore offer limited
+predictors (GNN-DSE, HGBO, Ironman-Pro, and MPM). MFF-              access to source-level syntactic detail.
+KAS further reduces All RMSE by 30.5% over trimodal fu-                To compensate for missing program semantics, subsequent
+sion and by 39.6%–67.3% over SOTA baselines, with stronger          work fuses graphs with textual programs. Wang and Carrion-
+cross-kernel robustness. The code and models are available at       Schafer [7] show that syntax-oriented program features, in-
+https://anonymous.4open.science/r/MFF-KAS-EFE0.
+   Index Terms—High-level synthesis, Graph neural networks,
+                                                                    cluding abstract-syntax-tree descriptors, combined with con-
+Abstract syntax tree, Multimodal fusion, Meta-learning              ventional machine-learning models can accelerate FPGA HLS
+                                                                    design-space exploration by reusing knowledge from previ-
+                      I. I NTRODUCTION                              ously explored designs. ProgSG [8] aligns source-code tokens
+                                                                    with CDFG nodes for cross-modality representation learning.
+   High-Level Synthesis (HLS) automatically transforms high-        MPM [9] couples CDFG encoders with pretrained language-
+level programming languages such as C/C++ into Hard-                model embeddings in a CDFG+Text fusion pipeline, achieving
+ware Description Languages (HDLs), significantly lowering           strong accuracy on MachSuite and PolyBench. Nevertheless,
+the design barrier for FPGA development. In HLS Design              such bimodal schemes still omit explicit abstract syntax trees
+Space Exploration (DSE), the combinations of pragmas and            (ASTs) and therefore under-represent pragma parameters, their
+compilation options grow exponentially. Invoking synthesis          attachment to specific loops or statements, and nested loop
+and implementation for every configuration therefore incurs         structure. Moreover, their modality combination and network
+prohibitively high costs [1]. As a result, rapidly and accurately   topology are fixed at training time, so the same model is
+estimating Quality of Results (QoR), including latency and          applied at inference to every kernel and every QoR metrics
+resource utilization metrics such as LUT, FF, DSP, and BRAM,        (e.g., Latency, LUT, FF, and DSP). even though the best fusion
+before synthesis has become a critical step for filtering candi-    strategy varies across kernels and metrics.
+date designs and approaching Pareto-optimal solutions [2].             In summary, the field has progressed from CDFG-only pre-
+   In recent years, machine learning (ML)-based surrogate           dictors to CDFG+Text fusion based predictors, yet a system-
+models have gradually replaced traditional analytical estima-       atic solution is still lacking for syntax-aware multimodal mod-
+tion methods [3]. Among them, approaches that use the Con-          eling and for adapting representations across heterogeneous
+trol Data Flow Graph (CDFG) as input and adopt Graph Neu-           kernels and QoR metrics. Motivated by the above limitations,
+ral Networks (GNNs) to learn the mapping between program            especially the incomplete capture of pragma–loop structure
+   TABLE I: Comparison of three feature representations for HLS QoR
+                             prediction.
+                                                                                                                                         Cdfg+Text+Ast
+                                                                                             0.7                                                         0.14
+                                                                                                                                          Ast+Text
+                     Information                                                             0.6                                          Cdfg+Text      0.12
+Feature   Form                           Advantages          Limitations                     0.5                                          Only_Cdfg
+                                                                                                                                                         0.10
+                       Content
+
+
+
+
+                                                                                      RMSE
+
+
+
+
+                                                                                                                                                                RMSE
+                                                                                             0.4                                                         0.08
+                     Basic blocks,                                                           0.3                                                         0.06
+                                        Aligned with      Easily loses data                  0.2                                                         0.04
+                    operations, and
+CDFG      Graph                        hardware timing    types and exact                    0.1                                                         0.02
+                      data/control                                                             0
+                                        and datapaths      pragma values                           Latency     LUT      FF        DSP    BRAM
+                     dependencies
+                   Entire source and   Complete textual   Lacks hierarchical   Fig. 1. RMSE of four representative fusion schemes on the jacobi-2d kernel
+ Text     Sequence
+                      pragma text         content             structure
+                                                                               across five QoR metrics. Latency is plotted against the left y-axis; LUT, FF,
+                       Functions,                                              DSP, and BRAM RMSE are plotted against the right y-axis.
+                                       Preserves syntax     Lacks explicit
+                    branches, loops,
+ AST       Tree                         and high-level      dataflow and
+                   expressions, and                                            Inspired by algorithm selection [12], we propose a kernel-
+                                          semantics          control flow
+                        pragmas
+                                                                               aware selector (KAS) that learns, across diverse kernels and
+in both CDFG-only and CDFG+Text pipelines, we introduce                        metrics, to select for each (kernel, metric) pair the most
+the abstract syntax tree as a complementary third represen-                    suitable of seven pretrained fusion experts. At inference time,
+tation [10]. Parsed directly from C/C++ with compilers, the                    KAS reads multimodal features from CDFG, AST, and Text
+AST preserves functions, loops, conditions, expressions, and                   together with the QoR metric and selects the corresponding
+pragmas, and explicitly records which pragmas attach to which                  expert, avoiding a globally fixed fusion policy.
+statements or loops. It thus complements CDFG views that                          The main contributions of this work are summarized as
+emphasize data/control flow and Text embeddings that lack                      follows:
+explicit hierarchical syntax.                                                     • We introduce an AST-based GNN encoding for HLS
+   To     make      this    distinction   concrete,    consider                     QoR prediction, which preserves pragma–loop associa-
+#pragma HLS UNROLL factor=4 as an example.                                          tions and syntactic hierarchy that are difficult to retain in
+This directive appears in Text representations merely as a                          CDFG-only or sequence-only representations.
+sequence of discrete tokens, making it difficult to establish                     • We propose MFF, a Multimodal Feature Fusion frame-
+structural associations with the target loop body. In CDFG, it                      work that integrates CDFG, AST, and source-code Text
+is typically compressed into an auxiliary attribute of a loop                       through cross-attention-based fusion, and systematically
+node, which inadequately reflects the changes in parallelism                        evaluates all seven non-empty subsets of {CDFG, AST,
+and dataflow reorganization introduced by variations in the                         Text}.
+unroll factor. In contrast, within the AST, the pragma can be                     • Through extensive experiments, we show that no single
+represented as an independent node attached directly to the                         modality fusion is uniformly optimal across kernels and
+corresponding ForStmt, where both the unroll factor and                             QoR metrics; accordingly, we design meta-learning based
+the loop-nesting hierarchy are explicitly visible.                                  kernel aware selector to adaptively select among seven
+   These comparisons indicate that, for HLS QoR prediction                          pretrained experts per kernel and metric, achieving im-
+tasks requiring the preservation of both optimization directive                     proved prediction accuracy and cross-kernel generaliza-
+parameters and their syntactic context, incorporating AST rep-                      tion over SOTA models.
+resentations is both necessary and well justified [10]. Table I
+                                                                                                             II. PRELIMINARIES
+summarizes the three representations in terms of representation
+form, information focus, advantages, and limitations.                             This section presents the unified problem definitions and
+   Building upon this foundation, this paper proposes the                      notations used throughout the remainder of the paper. Section
+Multimodal Feature Fusion method (MFF) as its first core                       A introduces the multimodal QoR prediction task underlying
+contribution. MFF encodes abstract syntax trees (ASTs) to                      MFF, while Section B describes the data annotation and expert
+capture syntactic structure and deeply integrates them with the                selection process employed by KAS.
+computational-flow information in CDFGs and the semantic                       A. Multimodal Graph Learning for HLS QoR Prediction
+context in source-code Text. Through this multimodal fusion,
+                                                                                  Consider a hardware kernel k and a configuration c within
+MFF explicitly models loop nesting, memory layouts, and
+                                                                               its design space, where the configuration is jointly determined
+pragma–loop/statement associations, yielding a more compre-
+                                                                               by the source code and pragma settings. After HLS synthesis
+hensive program representation for QoR prediction.
+                                                                               and implementation, each (k, c) pair produces a QoR vector
+   However, richer multimodal representations do not always
+                                                                               y(k, c), which includes performance-related metrics (Latency)
+guarantee uniformly optimal QoR prediction. We systemati-
+                                                                               as well as resource-related components such as LUT, FF, DSP,
+cally evaluate all seven non-empty subsets of {CDFG, AST,
+                                                                               and BRAM utilization. Since design space exploration requires
+Text}: {CDFG+AST+Text}, {CDFG+AST}, {AST+Text},
+                                                                               evaluating QoR over a large number of configurations, this
+{CDFG+Text}, CDFG-only, AST-only, and Text-only. Experi-
+                                                                               work aims to learn a pre-synthesis surrogate mapping for
+ments on MachSuite and PolyBench show that the best subset
+                                                                               QoR prediction [4]. Given the ground-truth QoR vector y(k, c)
+varies across kernels and QoR metrics (Latency, LUT, FF,
+                                                                               obtained from HLS synthesis, we learn a surrogate f such that
+DSP, and BRAM); no single fusion strategy dominates all
+cases, consistent with the no-free-lunch theorem (NFL) [11].                                                   ŷ(k, c) = f (k, c),                                    (1)
+                                                                                Part 1:Multimodal Feature Fusion
+
+          Initial Data Set                               Feature Extraction & Encoding                                                               Feature Fusion & QoR Predict
+                                                                                                                     Feature Input
+                                                  CDFG Extraction                CDFG Encoding Branch
+                                                                                                                                                                Phase              Phase            𝒉𝒂
+        Behavioral                                                                                 Global            CDFG                                                           two
+                                                                                        GCN                                                    𝒉𝒈                one
+        Description                                                                                Pooling
+                              Source                                                                                                                    Multi-head                  Multi-head
+                                                                                                                                                      Cross-Attention             Cross-Attention
+                            Code(C/C++)
+                                                  Text Extraction                Text Encoding Branch                                                                       𝒉𝒈𝒕
+                                                                                                                                   Fusion                                                           𝒉𝒇𝒖𝒔𝒆𝒅
+                                                                                                                     Text                       𝒉𝒕
+                                              Token1    Token2   Token3                 Encoder                                     logic
+                                                                                      (CodeBERT)
+         HLS Tools                                                                                                                              𝒉𝒈               𝒉𝒈 = 𝟎 𝒉
+                                                                                                                                                                                       •Perf (Latency)
+                                                                                                                                                                         𝒂𝒕
+      (e.g. Vitis HLS)
+                                                  AST Extraction                 AST Encoding Branch                 AST                                                               •LUT
+                              QoR Labels
+                                                                                                                                                𝒉𝒕          𝜎    𝒉𝒕 = 𝟎 𝒉
+                                                                                                                                                                         𝒂𝒈            •BRAM
+                            (e.g. Latency)                                              Global                                                                   𝒉𝒂 = 𝟎                •FF
+                                                                                        Pooling                                                                           𝒉𝒈𝒕
+                                                                                                                                                𝒉𝒂
+                                                                                                                                                                                       •DSP
+
+
+
+
+                                                                                   Part 2:Model Selection
+             Input Data                                Kernel Indicator Recommendation                                                 Expert Matching             Expert1:
+                                                                                                                                                                                            Final QoR
+                                                                                                                                                                AST+CDFG+Text
+                                                                    QoR Predict Head head
+                                                                            QoR predict                               Perf – Expert1                                                           Results
+              Unseen Kernel                  Select Model                                                                                                          Expert2:
+                                                                                                                                             AST                  AST+CDFG
+                  (.c)                        (GCN+MLP)
+                                                                                                                                                                                           •Perf (Latency)
+                                                                                                                                                                   Expert3:                Predicted Value
+                                                                                                                      LUT – Expert5
+                                                                                                                                                                  AST+Text
+                Feature                                                                                                                                                                    •LUT
+                                                                                                                                                                   Expert4:                Predicted Value
+               Extraction                                                                                                                    CDFG                 CDFG+Text
+                                                                                                                       FF – Expert3                                                        •BRAM
+                                                                                                                                                                   Expert5:                Predicted Value
+                                                                                                                                                                  CDFG-Only
+             Feature Fusion                                                                                                                                                                •FF
+                                𝒉𝒇𝒖𝒔𝒆𝒅                                                                                BRAM – Expert1                                                       Predicted Value
+        𝒉𝒈    𝒉𝒕       𝒉𝒂                                                                                                                                          Expert6:
+                                                                                                                                             Text                  AST-Only                •DSP
+          +        +                                                                                                                                                                       Predicted Value
+                                                                                                                      DSP – Expert7                                Expert7:
+                                                                                                                                                                  Text-Only
+
+
+
+
+Fig. 2. Overall architecture of MFF-KAS. Part 1: CDFG, Text, and AST are encoded (GCN, CodeBERT, and AST-GNN) and fused in MFF via cross-attention
+for per-metric QoR regression. Part 2: KAS selects, for each unseen kernel and QoR metric, one of seven experts pretrained on the seven modality subsets
+of {CDFG, AST, Text}.
+
+where ŷ(k, c) is trained to approximate y(k, c).                                                            across heterogeneous modalities, with a gated residual to
+   For the same (k, c) pair, three types of representations                                                  balance the graph features and the fused representation.
+are constructed (as summarized in Table I). The CDFG is
+                                                                                                             B. Multimodal Data and Kernel-Aware Expert Selection
+constructed from LLVM IR via program-analysis tools (e.g.,
+ProGraML) [13] and captures data paths as well as control                                                       We consider kernels from MachSuite [18] and Poly-
+dependencies. The Text representation is obtained by encoding                                                Bench [19]. For each kernel k and configuration c, we con-
+the source code with a pretrained code language model [14],                                                  struct three modality-specific inputs from the same source pro-
+[15] followed by pooling, thereby providing global semantic                                                  gram and pragma settings: a CDFG graph, a Text embedding
+information. The AST is generated using Tree-sitter parsing,                                                 of source code, and an AST parse tree. Thus, every sample
+preserving the syntactic hierarchy of loops, branches, expres-                                               (k, c) is associated with a consistent triple of CDFG, Text, and
+sions, and pragmas. After converting the CDFG and AST into                                                   AST features for fusion and expert evaluation.
+graph structures, graph-level features are extracted using graph                                                Each regression expert is trained separately with synthe-
+neural networks [16], while the Text representation participates                                             sized QoR values as supervision. After all seven experts are
+in the subsequent fusion process in vector form. Since these                                                 pretrained, we evaluate them on the validation split: given
+three modalities emphasize different aspects of information,                                                 a fixed (k, c) and QoR metric t, we run every expert and
+                                                                                                                                         (t)
+they can be flexibly combined. Considering all non-empty                                                     record prediction error ej (k, c); smaller error indicates a
+subsets of CDFG, AST, Text, a total of seven modality                                                        better expert. The best expert index is
+combinations are obtained: CDFG+AST+Text, CDFG+AST,                                                                         e∗ (k, c, t) = arg          min
+                                                                                                                                                                          (t)
+                                                                                                                                                                        ej (k, c).                           (3)
+AST+Text, CDFG+Text, CDFG-only, AST-only, and Text-                                                                                                  j∈{0,...,6}
+only. Each modality combination corresponds to an expert                                                     Labels derived from e∗ are stored offline and used to train
+regressor. For a modality subset M and a QoR metric t, each                                                  KAS.
+expert predicts                                                                                                 As illustrated in Fig. 1, e∗ changes across kernels and met-
+                                   (t)           (t)                                                         rics t, so a single fixed modality combination is inappropriate
+                                ŷM (k, c) = fM (xM (k, c)) ,                                     (2)        at inference. We treat the seven experts as a set E. KAS
+                                                                                                             reads the same CDFG, AST, and Text representations as MFF,
+where xM (k, c) denotes the multimodal input constructed
+                                         (t)                                                                 together with QoR metric t, and selects one expert ê(k, t) ∈ E
+from (k, c) under M. When |M| = 1, fM is a single-modality
+                                                                                                             for each kernel–metric pair (k, t). The selected expert then
+regressor; when |M| ≥ 2, MFF first fuses the graph- and
+                                                                                                             produces the final prediction for every configuration of kernel
+sequence-level representations of CDFG, AST, and Text into
+                                                                                                             k:
+a unified embedding, and a metric-specific head then outputs
+                                                                                                                                                    (t)
+                                                                                                                                          ŷ (t) = fM(ê) xM(ê) (k, c) ,
+                                                                                                                                                                       
+ŷ (t) . The fusion applies projection and cross-attention [17]                                                   ê(k, t) = S(k, t),                                     (4)
+                                 Pragma
+                    Behavioral   Values                                                                                                                                 void gemm                （int N, float *A, float *B, float C）{
+                                             Design Config(e.g. TIIE)                                                                                                            int i, j;
+                    Dscription                                                                                                                                                   float sum=0.0;
+                                                                                                                                                                                 #pragma HLS pipeline II=1
+                                                                                                                                                                                 for(int i = 0; i < N; i++){
+                                                           Pragma
+                    Input                                                                                                                                                                sum = 0.0;
+                                                           Values
+                                                                                                                                                                                         #pragma HLS unroll factor=4
+                                                                                                                                                                                         for(j = 0; j < 4; j++){
+
+                      llvm IR                    Source Code(.c)                                                                                                                                                 sum += C * A[i*4+j];
+                                                                                                                                                                                                     }
+                                                                                                                                                                                         B[i] = sum;}
+                                                                                                                                                                        }
+
+
+                    PrograML&
+                      Pragma              Tokenizer            Tree-                                                                                                                                                     Codebert
+                     Inserter                                  sitter                                                                                                                                                                                                                                                               Tree-sitter
+
+
+                                                                                         A
+
+                                                                                                                                                                                                                                                  ,                         ,
+                                          Language                                                                                           void     gemm              (         int            N               ,       float                        float                     float       C          {
+                                                                                                                                                                                                                                         *A                       *B                            )
+                                                                                       index
+
+
+                                           Model              Global                   (i*4+j)
+                                                                                                 True
+                                                                                                         N
+                                                                                                                                              int      i           ,         j               ;
+                                                                                                                                                                                                                                                                                                                                             gemm
+                                                              Pooing
+                       CDFG
+                                                                                                                                             float    sum         =         0.0              ;
+                                                                                        load
+                                                                                       A[idx]           i < N       𝝋𝒊
+                                                                                                                                                                                                                                                                                                                                             Com
+                      (.gexf)                                                                                                                #pragma        HLS        pipline          II               =           1           ;                                                                                          Float                                           Float
+                                                                                                                                                                                                                                                                                                            int N                           -pound          Float C
+                                                                                                                                                                                                                                                                                                                              *A                                              *B
+                                                                                                         set                         i++
+                                                                                        MUL                                                   for      (                                     0               ;                                                         ++       )       {
+                                                                                                                                                                   i         =                                           i           <        N       ;       i
+                                     CDFG-Text
+                                                                                  C   C*A[IDX]          sum=0                      (loop1)
+                                                                                                                                                                                                                                                                                                                                                                            Float
+                                                                                                                                                                                                                                                                                                            int i           int j            For             II=1
+
+                                    Fusion samples
+                                                                                                                                             sum       =          0.0        ;                                                                                                                                                                                              sum=0
+
+                                                                                                                    <
+                                                          CDFG-Text-                     +              𝝋𝒔𝒖𝒎      (j < 4)          𝝋𝒋                                               factor                                           ;
+                                                                                                                                             #pragma        HLS         unroll                               =           4                                                                                                          factor                           B[i]
+                                                                                                                                                                                                                                                                                                                    sum=0                             For
+                                                                                                                                                                                                                                                                                                                                      =4                            =sum
+
+                    PyG(Torch-                             AST Fusion                                                        j++              for      (           j         =               0               ;           j           <        4       ;       j        ++       )       {
+
+
+                    geometric)                               samples                                            False
+                                                                                                                            (loop2)
+                                                                                                                                             sum       +=         C          *           A                   [           i           *        4       *       j        ]        ;       }                                            Expr            Array            Binary
+                                                                                                        Store
+                                                                                                         B[i]
+                                                                                                                                              B        [           i         ]               =           sum             ;
+
+
+                                                                                                                                               }       }
+                                                                                                          B
+
+                                                                                                                                                                                                                                                                                                                                         Global
+Fig. 3. Construction of aligned CDFG, Text, and AST features for each (k, c).                                                                                                                                                                                                                                                            pooing
+
+                                                                                                                        GCN
+
+
+
+where S denotes the selector and M(ê) is the modality subset
+of expert ê. The selector maintains a separate scoring head for
+each QoR metric over E.
+
+                            III. M ETHODOLOGY                                                                                                        𝑄1                                                                      𝐾1 , 𝑉1
+                                                                                                                                                                                                                                              𝑄                                                 𝐾, V
+
+   Fig. 2 illustrates the proposed MFF-KAS framework. Part 1                                     𝑀𝑢𝑙𝑡𝑖𝐻𝑒𝑎𝑑𝐴𝑡𝑡𝑒𝑛𝑡𝑖𝑜𝑛(𝑄1 , 𝐾1 , 𝑉1 )                                                                                                                                                                  𝑀𝑢𝑙𝑡𝑖𝐻𝑒𝑎𝑑𝐴𝑡𝑡𝑒𝑛𝑡𝑜𝑖𝑛(𝑄, 𝐾, 𝑉)
+
+builds seven modality-specific QoR regression experts: multi-
+modal inputs are extracted from each design configuration,
+                                                                                Fig. 4. Two-stage multi-head cross-attention fusion (MFF) for multimodal
+fused when more than one modality is active, and mapped                         QoR regression.
+to Latency, LUT, FF, DSP, and BRAM through five metric-
+specific regression heads that share one encoder–fusion back-                   dependences. Pragma-related information is attached during
+bone per expert. Part 2 trains a kernel-aware selector with                     graph construction [4] so that design parameters are reflected
+reinforcement learning: for an unseen kernel and a QoR                          in the graph topology and node attributes. For learning,
+metric, KAS recommends one pretrained expert and returns                        the CDFG is represented as a PyTorch Geometric (PyG)
+the prediction from the corresponding head. Symbols and                         graph [23] and encoded by a graph neural network (GNN)
+Eqs. (1)–(4) follow Section II.                                                 with global pooling, yielding a graph-level embedding hG .
+                                                                                   Text. The concatenation of source and pragma text is
+A. Overview                                                                     tokenized and encoded by a pretrained code language model
+   We study HLS QoR prediction on benchmarks such as                            (e.g., CodeBERT [14]). We take the pooled hidden state over
+MachSuite [18] and PolyBench [19]. Each kernel k denotes                        the sequence as hS , which captures global semantic cues such
+a synthesizable design (e.g., a loop nest or accelerator), and                  as algorithm structure and pragma keywords.
+each configuration c corresponds to a specific pragma and tool                     AST. An abstract syntax tree is obtained by parsing C/C++
+setting [20] that yields a distinct implementation. A design                    with Tree-sitter [10]. The AST is converted into a graph and
+configuration (k, c) is therefore identified by source code,                    encoded by a separate GNN with pooling [16] to obtain hA ,
+pragma annotations, and post-synthesis QoR labels y(k, c)                       preserving hierarchical syntax of loops, branches, and pragma
+obtained from FPGA HLS tools (e.g., Vitis HLS) [21].                            placement.
+   For every (k, c), three parallel representations are derived                    The three embeddings are aligned per (k, c) and cached for
+from the same C/C++ source so that the seven QoR experts and                    expert training, KAS training, and inference.
+KAS share a consistent input interface. The experts differ only
+in the enabled modality subset M in Eq. (2) and are trained                     C. Multimodal Feature Fusion (MFF)
+offline on the training split with synthesized QoR labels. Best                   Fig. 4 details the MFF module used in Part 1 of Fig. 2.
+expert indices e∗ for KAS supervision are defined in Sec. II-B.                 Given hG , hS , and hA from Sec. III-B, each expert e uses a
+                                                                                modality subset Me ; any disabled modality is zeroed before
+B. Multimodal Feature Extraction                                                projection so that one fusion stack supports seven input masks.
+  Fig. 3 summarizes the data pipeline. Each modality is                         MFF first fuses CDFG with Text and then injects AST in two
+encoded into a fixed-dimensional vector or graph embedding                      cross-attention stages.
+before MFF fusion or KAS-based expert selection.                                  Stage 1: Fusing CDFG and Text. We fuse graph-level
+  CDFG. Source code is first compiled to LLVM IR [22]                           CDFG with sequence-level Text before adding AST. Because
+by a compiler front end. Program-analysis tools (e.g., Pro-                     hG , hS , and hA have different native sizes, we linearly project
+GraML) [13] construct a CDFG whose nodes denote LLVM                            each active embedding to a shared fusion dimension d before
+IR instructions and whose edges represent data and control                      cross-attention. Q, K, and V denote the query, key, and value
+         Dataset Generator
+                                                            Benchmark Feature
+                                   Training Dataset                                              RL Recommendation Model
+            Benchmark                                           Data Fenerator                                                         Store
+                                                                                                                                                      State      Action             Reward
+                                      Benchmark                                                        Update                           Get
+                 Feature                                                                                                      PPO
+                                           &                                                           Agent
+                                                                 CDFG+Text+AST                                               Agent
+                                                                                                                                           Step
+                                   Best Algorithm Id
+           Fusion Model                                            Fusion data                                                         Interact               Environment
+           QoR Predict
+                  Actual
+                                                                                                                    Load Model Weight
+                  Result
+                                   Inference Dataset
+
+
+
+
+                                                                                                                                                                    Pediction QoR
+                                   Unseen Benchmark                 Fusion                     Probs            Model         Select   Recommendation
+                                           &                       Feature                                     Selector                           Id
+                                                                                   Target Id
+               Best                Best Algorithm Id                                                                                                                                True QoR
+                                                                                                               Inference
+           Algorithm Id
+
+
+    Fig. 5. KAS: label generation from seven experts, multimodal context encoding, PPO-based policy training, and inference-time expert matching.
+
+matrices in cross-attention. For Stage 1, Q1 is formed from                          minimize downstream QoR prediction error at deployment,
+hG and (K1 , V1 ) from hS . With H heads,                                            not merely fit best-expert labels e∗ . PPO directly maximizes
+                                                                                     the performance ratio in Eq. (8), assigning higher reward to
+                   hGS = MHCA(Q1 , K1 , V1 ),                                (5)
+                                                                                     near-optimal choices and enabling exploration when several
+where each head uses                                                                 experts are similarly strong on validation—benefits that one-
+                                                                                     hot supervision on e∗ cannot provide. We next detail its state
+                                   QK⊤
+                                                      
+           Attn(Q, K, V) = softmax √                       V.                (6)     representation, policy design, reward formulation, training
+                                     dk                                              procedure, and inference workflow.
+Here dk is the per-head key dimension used for scaled dot-                              State and policy. For a training or inference instance, the
+product attention; we set dk = d/H, where d is the shared                            state s includes (i) a kernel-level context vector built from the
+fusion dimension and H is the number of attention heads.                             cached embeddings in Sec. III-B and the MFF fusion stack in
+A residual connection and layer normalization on the CDFG                            Sec. III-C, and (ii) an embedding of the QoR metric t. Metric-
+query branch preserve the graph anchor.                                              specific policy networks map s to logits over {0, . . . , 6},
+   Stage 2: Incorporating AST. Using Eq. (6), hA is merged                           parameterizing πθ (a | s).
+into hGS with Q2 from hGS and (K2 , V2 ) from hA , yielding                             Reward and PPO update. The policy is optimized with
+hfuse with the same residual pattern.                                                proximal policy optimization (PPO) [24]. During RL training,
+   Gating. Cross-attention fusion can over-emphasize                                                                       (t)
+                                                                                     an action a selects expert ea . Let ej (k, c) be the validation
+Text/AST context and under-use the CDFG embedding that                               error of expert j on metric t. The immediate reward compares
+carries dataflow and control structure. We therefore gate the                        the chosen expert to the best available expert:
+fused vector with the projected CDFG representation:
+                                                                                                                            (t)
+                                                                                                                           ej (k, c) + ϵ
+                 α = σ Wg [hG ; hfuse ] ,
+                                       
+                                                                                               r(s, a) = min                (t)
+                                                                                                                                                  ,     r ← min(r, rmax ),                     (8)
+                  ′                                       (7)                                                      j       ea (k, c) + ϵ
+             hfuse = α ⊙ hG + (1 − α) ⊙ hfuse .
+                                                                                     where ϵ avoids division by zero and rmax caps extreme
+where α is broadcast over feature dimensions. The gated
+             ′                                                                       ratios. Rewards are normalized within a mini-batch to form
+output hfuse is fed into five metric-specific MLP regression
+                                                                                     advantages. PPO maximizes a clipped surrogate objective with
+heads—one for each component of y(k, c) (Latency, LUT, FF,
+                                                                                     an entropy bonus to stabilize exploration.
+DSP, and BRAM). The heads share the multimodal encoder
+and fusion trunk but use independent parameters and are                                 Training. KAS policies are trained separately for each QoR
+optimized jointly in a single forward pass. Each modality-                           metric using offline best-expert labels e∗ from Sec. II-B. Dur-
+specific expert is thus one multi-output regressor (one model,                       ing PPO updates, actions closer to the e∗ expert receive higher
+five heads), rather than five independently trained networks.                        rewards (Eq. (8)). After convergence, one policy checkpoint
+   Seven QoR experts. We train one such expert for each non-                         is retained per QoR metric.
+empty subset of {CDFG, AST, Text} (seven experts in total).                             Inference. Given a new kernel and QoR metric t, the trained
+                                                                                                                                                (t)
+All experts are frozen before KAS training, and the best-expert                      policy returns ê(k, t) = arg maxa πθ (a | s). Only fM(ê)
+labels e∗ follow the procedure in Section II-B.                                      is executed to produce ŷ (t) (Eq. (4)). The online cost per
+                                                                                     metric is one policy forward pass plus one expert forward pass,
+D. Kernel-Aware Selector (KAS)                                                       rather than all seven regressors. Different metrics may select
+  Fig. 5 illustrates the training and deployment pipeline of                         different experts for the same kernel, reflecting heterogeneous
+KAS. KAS selects one of seven pre-trained experts based                              optimality of modality combinations across kernels and QoR
+on the multimodal kernel representation and the target QoR                           dimensions.
+metric. The selector is trained via reinforcement learning,                             End-to-end workflow. For an unseen design, the system
+with rewards derived from validation prediction errors. We                           first builds aligned CDFG, Text, and AST features as described
+adopt reinforcement learning because expert selection must                           in Section III-B. It then runs KAS once for each requested
+                             TABLE II                                                                           TABLE III
+T WENTY- TWO KERNELS FROM M ACH S UITE AND P OLY B ENCH (†: SEVEN                       RMSE OF MPM, SOTA MODELS , AND MFF FUSION VARIANTS ON
+ UNSEEN TEST KERNELS ). T HE TRAINING POOL CONTAINS 15 KERNELS                         UNSEEN TEST KERNELS ( MACRO - AVERAGED PER Q O R METRIC ). All IS
+WITH 4,355 DESIGN CONFIGURATIONS IN TOTAL ; THE SEVEN † KERNELS                         THE SUM OF RMSE OVER L ATENCY, LUT, DSP, FF, AND BRAM.
+   ARE RESERVED FOR FINAL EVALUATION ONLY AND CONTAIN 1,935
+  DESIGN CONFIGURATIONS IN TOTAL . Dataset Size IS THE NUMBER OF
+    DESIGN CONFIGURATIONS WITH GROUND TRUTH Q O R LABELS .
+                                                                                      Method              Latency LUT       DSP      FF     BRAM     All
+                                                                                      GNN-DSE [4]          0.692    0.109   0.145   0.083   0.058   1.086
+Kernel          Description                                            Dataset Size   HGBO [5]             0.492    0.082   0.057   0.047   0.069   0.747
+adi             Alternating direction implicit solver                          322    Ironman-Pro [6]      0.702    0.038   0.046   0.033   0.043   0.862
+aes             A common block cipher                                           45    MPM [9]              0.459    0.034   0.040   0.021   0.034   0.588
+atax†           Matrix transpose and vector multiplication                     227    AST-only             0.382    0.076   0.089   0.067   0.075   0.688
+bicg            BiCG sub kernel of bicgstab linear solver                      347    AST+CDFG             0.361    0.046   0.064   0.058   0.055   0.584
+doitgen         multi-resolution analysis kernel                                74    AST+Text             0.442    0.036   0.049   0.036   0.032   0.594
+fdtd-2d         2-D finite different time domain kernel                        289
+gemm-blocked    A blocked version of matrix multiplication                     243
+                                                                                      AST+CDFG+Text        0.297    0.067   0.058   0.042   0.047   0.511
+gemm-ncubed     Dense matrix multiplication                                    362
+gemver          Vector multiplication and matrix addition                      464
+gemm-p†         Matrix-multiply                                                303    urations in total. These configurations are randomly split into
+gesummv†        Scalar, vector and matrix multiplication                       159    training and validation sets with a ratio of 8:2. All regressors
+mvt             matrix vector product and transpose                            476
+spmv-crs        Sparse matrix-vector multiplication(variable-length)            73    are trained on the training split and tuned on the validation
+spmv-ellpack†   Sparse matrix-vector multiplication(fixed-size)                114    split; KAS supervision labels are generated from the validation
+2mm             2 matrix multiplications                                       388
+                                                                                      split (Sec. II-B). Final evaluation is conducted on all design
+3mm             3 matrix multiplications                                       467
+heat-3d         Heat equation over 3D data domain                              225    configurations of the seven unseen kernels.
+jacobi-1d†      1-D Jacobi stencil computation                                 222
+jacobi-2d†      2-D Jacobi stencil computation                                 524
+                                                                                         We adopt root mean square error (RMSE) as the primary
+nw†             A dynamic programming algorithm                                386    evaluation metric, as it is a standard choice in HLS QoR
+seidel-2d       2-D Seidel stencil computation                                  56    prediction and enables consistent error comparison across
+stencil         A two-dimensional stencil computation                          524
+                                                                                      Latency, LUT, DSP, FF, and BRAM despite their different
+                                                                                      scales [3], [4]. For each QoR metric, we compute the RMSE
+QoR metric and invokes only the recommended expert regres-
+                                                                                      on every unseen kernel and then report the unweighted mean
+sor. This design decouples multimodal QoR modeling via MFF
+                                                                                      over the seven kernels (macro average), ensuring that each test
+from kernel aware expert deployment through KAS.
+                                                                                      kernel contributes equally. Detailed per metric and per kernel
+                IV. E XPERIMENTAL E VALUATION                                         results are presented in the following subsections.
+A. Experimental Setup                                                                      c) Compared Baselines and Model Variants: Table III
+   This section evaluates the QoR prediction accuracy of MFF-                         presents the RMSE results on unseen kernels for eight pre-
+KAS using a consistent HLS experimental setup and fixed                               diction methods. These include four state-of-the-art QoR pre-
+train/test data splitting strategy across all comparisons. We                         dictors, namely GNN-DSE [4], HGBO [5], Ironman-Pro [6],
+aim to answer three key questions:                                                    and MPM [9], as well as four MFF variants incorporat-
+   1) Can integrating AST into multimodal representations                             ing AST features: AST-only, AST+CDFG, AST+Text, and
+       significantly improve HLS QoR prediction over existing                         AST+CDFG+Text. Table IV summarizes the full ablation
+       predictors and unimodal baselines?                                             study across all seven modality combinations: AST-only,
+   2) How do different modality combinations perform across                           CDFG-only, Text-only, and the three bimodal fusions and the
+       diverse kernels and QoR metrics, and what are their                            trimodal fusion. MFF-KAS is evaluated separately. During
+       individual contributions?                                                      inference, it performs kernel-level expert selection among the
+   3) Given that no single modality fusion is universally                             seven pre-trained fusion experts, with macro-averaged and per-
+       optimal, can the proposed kernel-aware selector (KAS)                          kernel results reported in Tables VI and VII.
+       consistently improve prediction accuracy and general-                                d) Implementation: Seven fusion experts (AST-only,
+       ization across unseen kernels?                                                 CDFG-only, Text-only, AST+CDFG, AST+Text, CDFG+Text,
+      a) Dataset: We use 22 kernels from MachSuite [18] and                           and AST+CDFG+Text) are pretrained independently under
+PolyBench [19], listed in Table II. Each design configuration                         the MFF architecture using the same data partition. Expert
+uses three inputs: a ProGraML-based CDFG [13], a program                              checkpoints are frozen before KAS training; at inference,
+AST, and tokenized source text [14]. Ground-truth QoR labels                          only the selected expert is executed, and fusion weights
+are obtained by synthesizing each kernels with its pragma set-                        are not retrained on the test set.The seven fusion experts
+tings on AMD UltraScale+ MPSoC ZCU104 using Vitis HLS                                 and KAS share the same optimizer, learning rate, training
+and Vivado 2022.1.                                                                    epochs, and early-stopping rule on the validation set. SOTA
+      b) Partition and metrics: We first fix a random seed and                        QoR predictors presented in Table III (GNN-DSE, HGBO,
+select seven kernels as unseen test benchmarks († in Table II):                       Ironman-Pro, and MPM) follow their original implementations
+atax, gemm-p, gesummv, jacobi-1d, jacobi-2d, nw, and spmv-                            or published settings and are not required to use the same
+ellpack. The remaining 15 kernels contain 4,355 design config-                        training configuration as the MFF experts.
+                         TABLE IV                                                        9
+    RMSE LOSS OF SEVEN FUSION EXPERTS ON UNSEEN KERNELS .                                8
+
+
+
+
+                                                                  Number of best cells
+                                                                                         7
+                                                                                         6
+Fusion expert      Latency LUT     DSP    FF    BRAM     All                             5
+                                                                                         4
+AST-only            0.382   0.076 0.089 0.067   0.075   0.688                            3
+CDFG-only           0.418   0.081 0.086 0.064   0.095   0.744                            2
+
+Text-only           0.492   0.035 0.046 0.031   0.031   0.635                            1
+                                                                                         0
+                                                                                             AST-Only   CDFG-Only    Text-Only   AST+CDFG    AST+Text   CDFG+Text AST+CDFG+Text
+AST+CDFG            0.361   0.046 0.064 0.058   0.055   0.584
+AST+Text            0.442   0.036 0.049 0.036   0.032   0.594    Fig. 6. Best fusion expert across unseen test kernels and QoR metrics. Each
+                                                                 bar shows how many of the 35 (kernel, metric) pairs (seven kernels × five
+CDFG+Text           0.453   0.050 0.052 0.042   0.041   0.638    metrics) achieve the lowest RMSE with that expert.
+AST+CDFG+Text       0.297   0.067 0.058 0.042   0.047   0.511
+                                                                                            TABLE V
+                                                                  M ACRO - AVERAGED RMSE ON UNSEEN KERNELS : AST+CDFG+Text VS .
+B. Comparison with SOTA models                                                             MFF-KAS.
+   Table III reports macro-averaged RMSE on the seven un-
+seen test kernels († in Table II). The upper four rows are        Method                                            Latency LUT             DSP         FF   BRAM         All
+prior learning-based QoR predictors; the lower four rows are      AST+CDFG+Text                                     0.297        0.067 0.058 0.042             0.047     0.511
+MFF variants that incorporate AST. Among SOTA baselines,          MFF-KAS                                           0.223        0.033 0.040 0.028             0.031     0.355
+MPM [9] achieves the lowest All RMSE (0.588) and serves
+as our primary reference.                                        (LUT, DSP, FF, BRAM) for every kernel. Figure 6 further
+   Adding AST consistently helps: AST-only (0.382 Latency)       visualizes, for each unseen kernel and each QoR metric,
+already beats all four baselines on Latency. AST+CDFG            which of the seven pretrained experts attains the lowest
+further improves Latency and All RMSE to 0.361 and 0.584;        RMSE. The height of each bar indicates the number of
+AST+Text is strongest on BRAM (0.032) but weaker on              winning (kernel, metric) pairs out of a total of 35. Notably,
+Latency than AST+CDFG. AST+CDFG+Text attains the best            Text-only is optimal in eight cells, followed by AST+CDFG
+Latency (0.297) and All RMSE (0.511), i.e., 13.1% lower All      in seven and CDFG+Text in six, whereas AST+CDFG+Text
+than MPM and 25.7% lower than AST-only. Still, MPM and           is optimal in only five cells, despite having the best macro
+AST+Text win on several resource metrics, so even the best       averaged Latency and overall RMSE in Tables III and IV.
+fixed trimodal fusion is not uniformly optimal across QoR        For instance, on the nw kernel, AST+Text yields the best
+metrics.                                                         Latency, while Text-only performs best on LUT and BRAM;
+                                                                 on spmv-ellpack, AST-only achieves the best Latency but
+C. Evaluation of All Modality Subsets
+                                                                 falls short on the four resource metrics. No single fusion
+   Table IV reports RMSE for seven MFF experts trained as        expert dominates all 35 (kernel, metric) pairs, which further
+in Sec. IV-B on the seven unseen test kernels († in Table II).   addresses research question (2).
+   AST-only attains the lowest unimodal Latency RMSE
+(0.382), ahead of CDFG-only (0.418) and Text-only (0.492).       E. Evaluation of Kernel-Aware Expert Selection
+Text-only yields the best RMSE on all four resource metrics
+(LUT, DSP, FF, and BRAM). CDFG-only records the highest             Given the heterogeneity observed in Fig. 6, we evaluate
+unimodal All RMSE (0.744).                                       MFF-KAS, which dynamically routes each unseen test kernel
+   Among bimodal experts, AST+CDFG achieves the second-          to one of the pretrained fusion experts at inference time. We
+best Latency (0.361) and a low All RMSE (0.584). AST+Text        compare four strategies: (i) MPM: the best performing SOTA
+preserves strong BRAM accuracy (0.032) but degrades La-          model. (ii) AST+CDFG+Text: the trimodal fusion expert ap-
+tency to 0.442. CDFG+Text lowers All RMSE to 0.638               plied uniformly to all unseen kernels. (iii) Best single expert
+compared with CDFG-only, yet its Latency (0.453) remains         per kernel: for each kernel, the expert with the lowest overall
+higher than CDFG-only, and its resource RMSE is worse than       RMSE across seven fusion variants is selected and used for
+Text-only on every utilization column.                           all five QoR metrics. (iv) MFF-KAS: our proposed method.
+   AST+CDFG+Text achieves the best Latency (0.297) and                 a) Macro-average results: Table V summarizes macro-
+best All RMSE (0.511), but it is not the per-column winner       averaged RMSE on the seven unseen test kernels. MFF-
+on resource metrics, where Text-only or AST+Text remain          KAS reduces RMSE on every QoR metric relative to
+superior. This addresses research question (2) and further       AST+CDFG+Text. All RMSE drops from 0.511 to 0.355
+motivates kernel-aware selection.                                (30.5% relative reduction); Latency RMSE drops from 0.297
+                                                                 to 0.223 (24.9%). MFF-KAS also outperforms every fusion
+D. No Single Fusion Expert Fits All Kernels and Metrics          experts listed in Table IV on all five metrics.
+   The aforementioned results show that although                       b) Per-kernel results: Table VI compares per-kernel All
+AST+CDFG+Text achieves the best Latency (0.297) and the          RMSE on the seven unseen test kernels for MPM [9], fixed
+best overall RMSE (0.511) among the seven fusion strategies,     trimodal fusion (AST+CDFG+Text), the best single expert per
+it does not consistently outperform on every resource metric     kernel, and MFF-KAS. The ∆% column reports the relative
+                            TABLE VI                                                                 R EFERENCES
+P ER - KERNEL All RMSE ON UNSEEN TEST KERNELS FOR MPM [9], FIXED
+  TRIMODAL FUSION (AST+CDFG+Text), THE BEST SINGLE EXPERT PER           [1] A. Sohrabizadeh, C. H. Yu, M. Gao, and J. Cong, “AutoDSE: Enabling
+KERNEL , AND MFF-KAS ( LOWER IS BETTER ). All IS THE SUM OF RMSE            software programmers to design efficient FPGA accelerators,” ACM
+OVER L ATENCY, LUT, DSP, FF, AND BRAM. ∆%: RELATIVE All-RMSE                Trans. Design Autom. Electron. Syst., vol. 27, no. 4, Art. 32, Feb. 2022,
+               REDUCTION OF MFF-KAS OVER MPM [9].                           doi: 10.1145/3494534.
+                                                                        [2] B. Carrion-Schafer and Z. Wang, “High-level synthesis design space
+                                                                            exploration: Past, present, and future,” IEEE Trans. Comput.-Aided
+Kernel          MPM [9] AST+CDFG+Text Best single expert MFF-KAS ∆%
+                                                                            Design Integr. Circuits Syst., vol. 39, no. 10, pp. 2628–2639, Oct. 2020.
+atax             0.455       0.333          0.304       0.303   33.4    [3] S. Dai, Y. Zhou, H. Zhang, E. Ustun, E. F. Y. Young, and
+gemm-p           0.881       0.496          0.444       0.451   48.8        Z. Zhang, “Fast and accurate estimation of quality of results in high-
+gesummv          0.619       0.354          0.354       0.316   49.0        level synthesis with machine learning,” in Proc. IEEE Symp. Field-
+jacobi-1d        0.748       0.314          0.314       0.285   61.9        Program. Custom Comput. Mach. (FCCM), 2018, pp. 129–132, doi:
+jacobi-2d        0.628       0.485          0.416       0.337   46.3        10.1109/FCCM.2018.00029.
+nw               0.284       0.583          0.289       0.252   11.3    [4] A. Sohrabizadeh, Y. Bai, Y. Sun, and J. Cong, “Automated accelerator
+spmv-ellpack     0.759       0.961          0.757       0.460   39.4
+                                                                            optimization aided by graph neural networks,” in Proc. ACM/IEEE
+Macro average    0.588       0.511          0.418       0.355   39.6        Design Autom. Conf. (DAC), 2022, pp. 55–60.
+                                                                        [5] H. Kuang, X. Cao, J. Li, and L. Wang, “HGBO-DSE: Hierarchical GNN
+All-RMSE reduction of MFF-KAS over MPM (Table cap-                          and Bayesian optimization based HLS design space exploration,” in
+                                                                            Proc. Int. Conf. Field Program. Technol. (ICFPT), 2023, pp. 106–114.
+tion). Compared with MPM, MFF-KAS lowers the macro-                     [6] N. Wu, Y. Xie, and C. Hao, “IronMan-Pro: Multi-objective design space
+averaged All RMSE from 0.588 to 0.355 (∆% = 39.6%)                          exploration in HLS via reinforcement learning and graph neural network
+and improves every kernel, with per-kernel gains ranging                    based modeling,” IEEE Trans. Comput.-Aided Design Integr. Circuits
+                                                                            Syst., vol. 42, no. 3, pp. 900–913, Mar. 2023.
+from 11.3% (nw) to 61.9% (jacobi-1d). The largest reductions            [7] Z. Wang and B. Carrion-Schafer, “Learning from the Past: Efficient
+appear on jacobi-1d, gemm-p, gesummv, and spmv-ellpack.                     High-Level Synthesis Design Space Exploration for FPGAs,” ACM
+Relative to fixed trimodal fusion, MFF-KAS also reduces                     Trans. Design Autom. Electron. Syst., vol. 27, no. 4, Art. 34, Feb. 2022,
+                                                                            doi: 10.1145/3495531.
+macro-averaged All RMSE from 0.511 to 0.355 (30.5%).                    [8] Z. Qin et al., “Cross-modality program representation learning for elec-
+Together, these results show that neither a single fixed SOTA               tronic design automation with high-level synthesis,” in Proc. ACM/IEEE
+predictor nor a uniform trimodal fusion generalizes well on                 Int. Symp. Mach. Learn. CAD (MLCAD), 2024, pp. 1–12.
+                                                                        [9] L. Xu et al., “MPM-LLM4DSE: Reaching the Pareto frontier in HLS
+unseen kernels, motivating kernel- and metric-aware expert                  with multimodal learning and LLM-driven exploration,” in Proc. IEEE
+routing via KAS.                                                            Design, Automation and Test in Europe Conference (DATE), 2026, pp. 1–
+                                                                            7.
+F. Discussion and Summary                                              [10] M. Z. S. Khan, N. Mashnoor, M. Akyash, K. Azar, and H. Kamali,
+   Our experiments yield three key findings aligned with the re-            “SAGE-HLS: Syntax-aware AST-guided LLM for high-level synthesis
+                                                                            code generation,” in Proc. IEEE Int. Conf. Comput. Design (ICCD),
+search questions. First, integrating AST into multimodal repre-             2025, pp. 574–581.
+sentations significantly outperforms state-of-the-art predictors       [11] D. H. Wolpert and W. G. Macready, “No free lunch theorems for
+and unimodal/bimodal variants. The AST+CDFG+Text fusion                     optimization,” IEEE Trans. Evol. Comput., vol. 1, no. 1, pp. 67–82,
+                                                                            Apr. 1997, doi: 10.1109/4235.585893.
+achieves the lowest macro-averaged RMSE for latency and                [12] L. Kotthoff, “Algorithm selection for combinatorial search problems: A
+overall QoR on unseen kernels (Tables III and IV). Second,                  survey,” AI Mag., vol. 35, no. 3, pp. 48–60, Fall 2014.
+the optimal modality combination varies across kernels and             [13] C. Cummins et al., “ProGraML: Graph-based deep learning for program
+                                                                            optimization and analysis,” in Proc. MLSys, 2021, vol. 3, pp. 548–562.
+metrics (Fig. 6). Text-only performs best in eight of 35 kernel-       [14] D. Feng et al., “CodeBERT: A pre-trained model for programming and
+metric pairs, while AST+CDFG+Text is optimal in only five,                  natural languages,” in Proc. EMNLP, 2020, pp. 1536–1547.
+confirming no single fusion strategy is universally superior.          [15] D. Guo et al., “GraphCodeBERT: Pre-training code representations with
+                                                                            data flow,” in Proc. ICLR, 2021, arXiv:2009.08366.
+Third, MFF-KAS reduces the macro-averaged overall RMSE                 [16] T. N. Kipf and M. Welling, “Semi-supervised classification with graph
+from 0.511 to 0.355 (30.5%) over the fixed AST+CDFG+Text                    convolutional networks,” in Proc. ICLR, 2017.
+baseline, with consistent improvements across all seven unseen         [17] A. Vaswani et al., “Attention is all you need,” in Proc. NeurIPS, 2017,
+                                                                            pp. 5998–6008.
+kernels (Tables V and VI).                                             [18] B. Reagen et al., “MachSuite: Benchmarks for accelerator design and
+                                                                            customized architectures on FPGA,” IEEE Micro, vol. 34, no. 3, pp. 18–
+                       V. C ONCLUSION                                       26, May–Jun. 2014.
+   This paper proposed MFF-KAS for HLS QoR prediction.                 [19] M. Á. Abella-González, L.-N. Pouchet, and G. Rodrı́guez, “Poly-
+We introduced AST as a syntactic representation to comple-                  Bench/Python: Benchmarking Python environments with polyhedral op-
+                                                                            timizations,” in Proc. ACM SIGPLAN Int. Conf. Compiler Construction
+ment CDFG and source text, capturing pragma-loop structures                 (CC), 2021, pp. 59–70.
+that existing methods miss. Systematically evaluating all seven        [20] S. Pouget, L.-N. Pouchet, and J. Cong, “Automatic hardware pragma
+modality subsets revealed that no single fixed fusion is optimal            insertion in high-level synthesis: A non-linear programming approach,”
+                                                                            ACM Trans. Design Autom. Electron. Syst., vol. 30, no. 2, Art. 26,
+across kernels and QoR metrics. We therefore developed                      Feb. 2025.
+a kernel-aware selector that dynamically chooses the best              [21] R. Nane et al., “A survey and evaluation of FPGA high-level synthesis
+pretrained expert for each unseen kernel and QoR metric.                    tools,” IEEE Trans. Comput.-Aided Design Integr. Circuits Syst., vol. 35,
+                                                                            no. 10, pp. 1591–1604, Oct. 2016.
+On unseen benchmarks, MFF-KAS reduces macro-averaged                   [22] C. Lattner and V. Adve, “LLVM: A compilation framework for lifelong
+RMSE by 30.5% compared to the best trimodal fusion and                      program analysis and transformation,” in Proc. CGO, 2004, pp. 75–88.
+outperforms strong baselines, demonstrating effective cross-           [23] M. Fey and J. E. Lenssen, “Fast graph representation learning with
+                                                                            PyTorch Geometric,” in Proc. ICLR, 2019.
+kernel generalization. Future work will extend selection from          [24] J. Schulman et al., “Proximal policy optimization algorithms,” arXiv
+kernel level to individual design configurations.                           preprint arXiv:1707.06347, 2017.
+
